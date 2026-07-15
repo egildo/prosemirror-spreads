@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "types": ["vite/client", "node"],
+    "paths": {
+      "prosemirror-spreads": ["./src/index.ts"]
+    }
+  },
+  "include": ["src", "playground", "test", "vite.config.ts", "vitest.config.ts", "tsdown.config.ts"]
+}

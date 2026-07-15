@@ -1,0 +1,67 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  color: #1a1a1a;
+  background: #fafafa;
+}
+
+main {
+  display: grid;
+  grid-template-columns: 1fr minmax(280px, 420px);
+  gap: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+
+h2 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #666;
+  margin: 0 0 0.5rem;
+}
+
+#editor {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+
+.ProseMirror {
+  padding: 1rem 1.25rem;
+  min-height: 20rem;
+  outline: none;
+}
+
+#inspector-pane {
+  position: sticky;
+  top: 1.5rem;
+  align-self: start;
+  max-height: calc(100vh - 3rem);
+  overflow: auto;
+}
+
+#inspector {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 1rem;
+  border-radius: 6px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
