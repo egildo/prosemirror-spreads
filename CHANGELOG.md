@@ -2,6 +2,14 @@
 
 The venue's memory between sessions: what changed, because of what, instead of which rejected road. The working documents hold the present; this file holds the past. One entry per session, written at close, religiously.
 
+## 2026-07-16 — Round: cell values and formats
+
+**Format is a declaration; the cell anatomy completes** (settled, circled) — raw value in an attribute (machine's truth), formatted text in content (reader's truth), `content = format(value, spec, lang)` enforced by the same engine and dispatch as formulas — *because* the two-truths structure settled for formulas extends without new machinery (C8 was already "keep the declarations true"; a format is one more declaration kind), and content must stay what a reader reads (Egildo's rule: formatted data as content), *instead of* Excel's raw-stored-format-at-display, which would put machine text where readers look.
+
+**Emission wraps in the spec's own elements** (settled, circled; sources read: MDN, WHATWG) — `<time datetime>` for temporal values (MDN: must), `<data value>` for the rest; the WHATWG spec's canonical `data` example is literally our design — numeric table cells wrapped so a computing script reads values while humans read text. The td-pleonasm worry (Egildo's smell) dissolved on reading: td contributes the WHERE, the wrapper the WHAT. Document model stays scalar (value/type/format as node attrs; wrappers are toDOM's business; parse accepts both shapes; settle-on-commit's pin untouched) — *instead of* private `data-value` td attributes, mute to standard tools.
+
+**The platform's split**: formatting is `Intl` under inherited `lang` (deterministic — declaration plus lang is a pure function); CSS's honest share is styling-by-type (`[data-type]` alignment, `tabular-nums`) in the constructed sheet. The buffer shows the lexical value, grid shows formatted content; settle parses by type and locale — data validation's second species grows teeth at the seam, *instead of* spreadsheet-style silent skipping. Types and formats join `col` (third arrival at the column-automation seat). **New opens**: format-spec notation (christening cargo), the locale road's no-`lang` default, cell-level override of col declarations.
+
 ## 2026-07-15 — Rounds: the fill handle, and incremental elegance
 
 **The fill handle needs no dependency** (pinned, §5) — overlay + purpose zone + gesture law + one fill command, with native `cursor: cell` and `cursor: crosshair` — *because* the four pinned mechanisms already assemble it and Excel's hairiest fill machinery (relative-reference rewriting) doesn't exist under semantic references: filling a formula is literal copying, *instead of* reaching for a drag library or a spreadsheet widget that would import a second world. Fill-to-column-bottom becomes the on-ramp to calculated columns. Surfaced: the this-row contextual reference (`=Price*Qty` meaning "at my row") needs its grammar rule — marked open in §8.
