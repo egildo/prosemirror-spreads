@@ -26,8 +26,12 @@ The grid is the primary surface; text editing is a mode you enter and leave. Wor
 
 We will explore ways to add functions and automations, making this also a "lil spreadsheet". The principle commits to the exploration, not yet to any mechanism; this is the venue's frontier and its claims graduate to settled only by surviving.
 
+## P6 — Incremental elegance · settled (2026-07-15, circled)
+
+Nobody arrives elegant. Semantic markup fails in the market when its rewards feel moral rather than material — behaving like a good boy — so this plugin makes semantics *pay*: meaningful features backed by standards, great relative to document editing (not spreadsheets for banks and finance). The system is an escalator, never a gate: every capability has a bottom step that works on day-zero mess, and the interface actively converts mess into meaning — rulers recede into headers, positional scaffolding upgrades into names, a filled column offers to become the column's rule, the promotion affordance retires itself. One instinct, all the outfits. Wherever a cliff appears — capability denied until semantics exist — the design is wrong there (C11 was repaired by exactly this test).
+
 ## Open questions
 
-- **Venue identity layering** · open — Venture-grade rigor on the table core, marked probe on the frontier (the coach's proposal); the counter-read — that the functions are the heart — was never ruled on. The sayable line of 2026-07-14, *"we take seriously THEAD and TFOOT, scope row and scope col,"* may dissolve this question if it earns the stone; it waits outside, unratified.
+- **Venue identity layering** · open, likely dissolved — Venture-grade rigor on the table core, marked probe on the frontier (the coach's proposal); the counter-read — that the functions are the heart — was never ruled on. P6 proposes the dissolution: the heart is neither the table core nor the functions layer but the escalator between mess and meaning. Egildo to confirm closure. The sayable line of 2026-07-14, *"we take seriously THEAD and TFOOT, scope row and scope col,"* still waits outside, unratified.
 
 All other open questions live where their rounds will land, one seat each, in the architecture (second edition, organized along the seam map): column width (§7 presentation), schema residue and cell content (§1 schema), value XOR formula (§5 interaction), the seams-as-packages question (C15).
