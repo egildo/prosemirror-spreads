@@ -30,4 +30,4 @@ We will explore ways to add functions and automations, making this also a "lil s
 
 - **Venue identity layering** · open — Venture-grade rigor on the table core, marked probe on the frontier (the coach's proposal); the counter-read — that the functions are the heart — was never ruled on. The sayable line of 2026-07-14, *"we take seriously THEAD and TFOOT, scope row and scope col,"* may dissolve this question if it earns the stone; it waits outside, unratified.
 
-All other open questions live where their rounds will land, one seat each, in the architecture: column width (styling), schema residue (document schema), value XOR formula (interaction), cell content scalar-vs-inline (document schema).
+All other open questions live where their rounds will land, one seat each, in the architecture (second edition, organized along the seam map): column width (§7 presentation), schema residue and cell content (§1 schema), value XOR formula (§5 interaction), the seams-as-packages question (C15).
