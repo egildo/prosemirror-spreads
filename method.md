@@ -17,7 +17,7 @@ Three working documents, one timeline:
 
 The venture moves in cycles (Egildo's method): fix principles and decisions in the **Tablet** → derive the **Architecture** → write the **Manual** as if the software shipped → **try to make it real**. Reality disagrees somewhere; the disagreement is the yield; the documents amend; the cycle starts again.
 
-**Battlegrounds are branches.** An attempt to make it real forks a branch from main. Its memory lives twice: in the repo as the branch itself (the attempt's history, kept), and — once reconciled — in the documents: lessons carve into Tablet, Architecture, and Manual; the story lands in the changelog. **Reality always wins in the end**: the documents must be true, and the code true to the documents; when they disagree, one of them is wrong, and finding which one is the work.
+**Battlegrounds are a branch and a field** (clarified 2026-07-18; battlegrounds 1–2 predate the field). An attempt to make it real forks a branch from main on this repo — the plugin side, where fixes and adjustments land. The battle itself runs in the **arena**: a standing sibling repo (`spreads-arena`, one branch per battleground) that plays the honest consumer — a clean ProseMirror install, the plugin installed *from the battle branch* as a built package (real peer dependencies, real `exports`, never the alias), its editor wired with **the manual's setup code verbatim** — the mock manual is executable, and where its instructions fail, the manual or the code is wrong, and that is the yield. The checkpoint rule: install from the git branch at battle start and before every merge talk; between checkpoints a local link of the built package keeps the fix-test loop fast (both paths consume `dist/`). The playground stays the builder's bench (aliased source, hot reload); the arena is the consumer's ground truth. Memory lives three times: the plugin branch (the fixes), the arena branch (the battle), and — once reconciled — the documents: lessons carve into Tablet, Architecture, and Manual; the story lands in the changelog. **Reality always wins in the end**: the documents must be true, and the code true to the documents; when they disagree, one of them is wrong, and finding which one is the work.
 
 ## The loop
 
@@ -37,6 +37,7 @@ The ritual, both halves religious:
 ## Repo conventions
 
 - pnpm; `pnpm dev` (playground), `pnpm test`, `pnpm typecheck`, `pnpm build`.
+- The arena lives at `../spreads-arena` (github:egildo/spreads-arena, private): the standing consumer repo where battlegrounds run; `prepare` in this repo's package.json makes git-branch installs build on install.
 - The package name `prosemirror-spreads` aliases to `src/index.ts` in the playground and tests: consumer-shaped imports, live source underneath.
 - ProseMirror core packages are peer dependencies; the consumer's editor owns them.
 - Prose documents: one logical line per paragraph, never hard-wrapped.

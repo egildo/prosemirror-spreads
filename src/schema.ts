@@ -1,8 +1,10 @@
 import type { Node, NodeSpec, NodeType, Schema } from "prosemirror-model"
 
-/// The structural role a node type plays inside a spreads table. The plugin
-/// locates node types by role, never by name, so consumers can rename the
-/// types when appending them to their own schema.
+/// The structural role a node type plays inside a spreads table. Roles are
+/// internal discipline — plugin code locates types through them, never by
+/// dispatching on names — and a discoverability hook for third-party
+/// tooling. They are not a renaming feature: the node names below are part
+/// of the package contract.
 export type SpreadsRole =
   | "table"
   | "caption"
@@ -30,7 +32,11 @@ const cellSpec = (role: "cell" | "header"): NodeSpec => ({
 
 /// Node specs for the full table anatomy: `caption? colgroup* thead? tbody+ tfoot?`,
 /// rows of `td`/`th` cells. Everything beyond `tbody+` is optional — the
-/// bare-tbody table is first-class. Append the result to your schema's nodes.
+/// bare-tbody table is first-class. Append the result to your schema's
+/// nodes as-is: the node names are part of the contract (the incumbent's
+/// decade-proven posture), not parameters. Deliberate consequence: they
+/// collide with prosemirror-tables' names — one table system per schema,
+/// the seat is taken.
 export function spreadsNodes(_options: SpreadsNodesOptions = {}): Record<string, NodeSpec> {
   return {
     table: {
