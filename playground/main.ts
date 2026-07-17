@@ -43,6 +43,11 @@ document.querySelector("#insert-table")!.addEventListener("click", () => {
   view.focus()
 })
 
+document.querySelector("#insert-named-table")!.addEventListener("click", () => {
+  insertTable(3, 3, { headerRow: true })(view.state, view.dispatch)
+  view.focus()
+})
+
 const inspector = document.querySelector("#inspector")!
 
 function renderInspector(state: EditorState) {

@@ -5,6 +5,7 @@ import type { EditorView } from "prosemirror-view"
 import { Decoration, DecorationSet } from "prosemirror-view"
 import { CellView } from "./cellview"
 import { clearSelectedCells, selectRelativeCell, startEditing } from "./commands"
+import { enforceDeclarations } from "./enforce"
 import { isCellType } from "./schema"
 import type { SpreadsMeta, SpreadsState } from "./state"
 import { spreadsKey } from "./state"
@@ -51,19 +52,26 @@ export function spreadsPlugin(_options: SpreadsOptions = {}): Plugin<SpreadsStat
       init: () => ({ editing: null }),
       apply: (tr, value) => applyMeta(tr, value),
     },
-    // Selection legality is part of the shape duty (C8): a caret inside an
-    // atom cell must be unrepresentable, or ProseMirror's DOM reader ends up
-    // parsing node-view-owned DOM it cannot understand (probe finding: a
+    // The enforcement seat (C8), both working pieces so far. First duty
+    // fragment — selection legality: a caret inside an atom cell must be
+    // unrepresentable, or ProseMirror's DOM reader ends up parsing
+    // node-view-owned DOM it cannot understand (probe finding: a
     // double-click's second click, and undo restoring a mapped text
     // selection, both put the caret inside a cell — and the next DOM read
-    // mangled the table). Any selection landing inside a cell is coerced to
-    // the cell's node selection.
-    appendTransaction(_trs, _old, state) {
+    // mangled the table). Second duty — declarations kept true: formula
+    // cells recompute in the same dispatch that dirtied them (the cascade
+    // rides the settle; remote transactions arrive already-consistent
+    // because only the originating client appends the recompute).
+    appendTransaction(trs, _old, state) {
+      const enforced = trs.some((t) => t.docChanged) ? enforceDeclarations(state) : null
       const sel = state.selection
-      if (sel instanceof NodeSelection && isCellType(sel.node.type)) return null
-      const cellPos = cellAround(sel.$head)
-      if (cellPos == null) return null
-      return state.tr.setSelection(NodeSelection.create(state.doc, cellPos))
+      if (!(sel instanceof NodeSelection && isCellType(sel.node.type))) {
+        const tr = enforced ?? state.tr
+        const $head = tr.doc.resolve(tr.mapping.map(sel.head))
+        const cellPos = cellAround($head)
+        if (cellPos != null) return tr.setSelection(NodeSelection.create(tr.doc, cellPos))
+      }
+      return enforced
     },
     props: {
       // The view-side entrance of the same law: selections ProseMirror
@@ -139,6 +147,14 @@ export function spreadsPlugin(_options: SpreadsOptions = {}): Plugin<SpreadsStat
     },
     view(editorView) {
       const dropStylesheet = adoptStylesheet(editorView)
+      // The stale-value rule (§3): a cold-parsed value disagreeing with its
+      // formula loses — the value is cache. Runs once on mount, outside
+      // history (undo must not restore staleness).
+      queueMicrotask(() => {
+        if (editorView.isDestroyed) return
+        const tr = enforceDeclarations(editorView.state)
+        if (tr) editorView.dispatch(tr.setMeta("addToHistory", false))
+      })
       return { destroy: dropStylesheet }
     },
   })

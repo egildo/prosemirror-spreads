@@ -26,8 +26,10 @@ function relativeCellPos(doc: Node, pos: number, dir: -1 | 1): number | null {
 }
 
 /// Insert a fresh table at the selection: `rows` × `cols`, empty, and
-/// honest — a bare tbody and nothing more.
-export function insertTable(rows = 3, cols = 3): Command {
+/// honest — a bare tbody and nothing more. With `headerRow`, a thead of
+/// `scope="col"` headers rides above the data rows (probe scaffolding:
+/// the promotion affordance is the rulers round's business).
+export function insertTable(rows = 3, cols = 3, options: { headerRow?: boolean } = {}): Command {
   return (state, dispatch) => {
     const types = spreadsNodeTypes(state.schema)
     if (!types.table || !types.body || !types.row || !types.cell) return false
@@ -41,7 +43,19 @@ export function insertTable(rows = 3, cols = 3): Command {
       }
       tableRows.push(types.row.create(null, cells))
     }
-    const table = types.table.create(null, [types.body.create(null, tableRows)])
+    const sections: Node[] = []
+    if (options.headerRow) {
+      if (!types.head || !types.header) return false
+      const headers: Node[] = []
+      for (let c = 0; c < cols; c++) {
+        const th = types.header.createAndFill({ scope: "col" })
+        if (!th) return false
+        headers.push(th)
+      }
+      sections.push(types.head.create(null, [types.row.create(null, headers)]))
+    }
+    sections.push(types.body.create(null, tableRows))
+    const table = types.table.create(null, sections)
     if (dispatch) dispatch(state.tr.replaceSelectionWith(table).scrollIntoView())
     return true
   }
@@ -77,18 +91,30 @@ export const stopEditing: Command = (state, dispatch) => {
   return true
 }
 
-/// Settle the cell at `pos`: replace its content with `text`, close the
-/// edit seam, and place the selection — all in one transaction, one undo
-/// step (C6: commit is the mode boundary, the evaluation trigger, and the
-/// undo grouping). `advance` moves selection to the next/previous cell.
+/// Settle the cell at `pos`: commit the buffer's text, close the edit
+/// seam, and place the selection — all in one transaction, one undo step
+/// (C6: commit is the mode boundary, the evaluation trigger, and the undo
+/// grouping; the recompute cascade rides this dispatch via enforcement).
+/// "=" as the first character makes the cell a formula (the attribute is
+/// the automation, content becomes the computed value — filled by the
+/// enforcement pass in this same dispatch); plain text over a formula
+/// cell demotes it to a standing value. Header cells never carry
+/// formulas (settled): "=" text settles as literal content there.
 export function settleCell(pos: number, text: string, advance: -1 | 0 | 1 = 0): Command {
   return (state, dispatch) => {
     const cell = state.doc.nodeAt(pos)
     if (!cell || !isCellType(cell.type)) return false
     if (dispatch) {
       const tr = state.tr
-      if (text !== cell.textContent)
-        tr.replaceWith(pos + 1, pos + cell.nodeSize - 1, text ? state.schema.text(text) : Fragment.empty)
+      const isDataCell = cell.type.spec.spreadsRole === "cell"
+      const asFormula = isDataCell && text.startsWith("=")
+      if (asFormula) {
+        if (text !== cell.attrs.formula) tr.setNodeMarkup(pos, null, { ...cell.attrs, formula: text })
+      } else {
+        if (isDataCell && cell.attrs.formula != null) tr.setNodeMarkup(pos, null, { ...cell.attrs, formula: null })
+        if (text !== cell.textContent)
+          tr.replaceWith(pos + 1, pos + cell.nodeSize - 1, text ? state.schema.text(text) : Fragment.empty)
+      }
       tr.setMeta(spreadsKey, { type: "stopEditing" } satisfies SpreadsMeta)
       const target = advance ? relativeCellPos(tr.doc, pos, advance) : null
       tr.setSelection(NodeSelection.create(tr.doc, target ?? pos))

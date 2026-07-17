@@ -89,8 +89,21 @@ export function spreadsNodes(_options: SpreadsNodesOptions = {}): Record<string,
     },
     table_cell: {
       ...cellSpec("cell"),
-      parseDOM: [{ tag: "td" }],
-      toDOM: () => ["td", 0],
+      attrs: {
+        // Automation in attributes (P3): the formula is provenance, the
+        // content is the computed value. Standing cells stay pristine.
+        formula: { default: null },
+      },
+      parseDOM: [
+        {
+          tag: "td",
+          getAttrs: (dom: HTMLElement) => ({ formula: dom.getAttribute("data-formula") }),
+        },
+      ],
+      toDOM: (node: Node) => {
+        const formula = node.attrs.formula as string | null
+        return formula ? ["td", { "data-formula": formula }, 0] : ["td", 0]
+      },
     },
     table_header: {
       ...cellSpec("header"),

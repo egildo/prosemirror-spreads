@@ -62,7 +62,9 @@ export class CellView implements NodeView {
   private openBuffer(seed: string | null) {
     const input = document.createElement("input")
     this.input = input
-    input.value = seed ?? this.node.textContent
+    // The buffer shows the formula for formula cells, the lexical value
+    // for standing cells — the grid shows the computed, formatted content.
+    input.value = seed ?? (this.node.attrs.formula as string | null) ?? this.node.textContent
     input.addEventListener("keydown", this.onKeydown)
     input.addEventListener("blur", this.onBlur)
     this.dom.textContent = ""
