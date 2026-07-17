@@ -18,10 +18,12 @@ const schema = new Schema({
 const state = EditorState.create({
   schema,
   plugins: [
+    // The ordering contract (§5, interim law): spreads() before any keymap
+    // that binds grid-meaningful keys — plugin order is PM's priority system.
+    ...spreads(),
     history(),
     keymap({ "Mod-z": undo, "Mod-y": redo, "Mod-Shift-z": redo }),
     keymap(baseKeymap),
-    ...spreads(),
   ],
 })
 
