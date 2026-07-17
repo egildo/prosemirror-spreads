@@ -2,6 +2,24 @@
 
 The venue's memory between sessions: what changed, because of what, instead of which rejected road. The working documents hold the present; this file holds the past. One entry per session, written at close, religiously.
 
+## 2026-07-16 — Round: the method stated whole
+
+**The cycle carved into method.md** (Egildo) — Tablet → Architecture → mock Manual → make it real → learn → recarve; battlegrounds are branches whose memory lives in the repo and reconciles into the documents; reality always wins — documents true, code true to documents — *because* the venue had only the round-scale loop written while the cycle-scale method lived in Egildo's head, *instead of* leaving venture pacing to session improvisation.
+
+## 2026-07-16 — Round: scope for rows and cols, the implications drawn
+
+**The grain revelation** (settled, §8) — `scope="row"` is HTML declaring a table's grain, and document tables are often row-major (comparison tables, spec sheets); names never knew about axes, so `=SUM(Weight)` over a row is the same resolver with no special case — *because* C4 made references semantic from the start, *instead of* spreadsheets' transpose agony. Likely the scope commitment's most practically-loved consequence.
+
+**Seated across the sections**: rows are mixed (th inside tbody rows; content-expression fact, §1) with multiple row-headers capped at one for v1; **no formulas on th** (a computed name would make range identity depend on cell values — a self-describing graph; parked hard); cross-axis collisions join the naming round (a column `Q1` vs a row `Q1`); type discipline at the basis (SUM over a name column is a C9 error); per-row scaffolding numbers for unnamed rows (the recede law sideways, §5); and **parse-time scope normalization** opened in §11 — improve wild markup during shape repair, or refuse to edit markup nobody asked us to touch; both instincts have teeth.
+
+## 2026-07-16 — Round: the abbr hunt
+
+**`abbr` is the reference name** (settled, circled; MDN read) — th content stays the human's full header, `abbr` carries the compact label formulas speak: `=SUM(Prezzo)` against `<th abbr="Prezzo">Prezzo unitario, IVA inclusa</th>` — *because* screen readers already announce `abbr` at every data cell, so formula names and assistive-tech names become the same string from the same attribute, *instead of* plugin-invented short-name machinery or forcing long header text into formulas. Resolution: abbr wins when present, content otherwise; rename propagation covers abbr edits. The naming round shrinks: long names solved by spec furniture, collisions gain a standard escape hatch.
+
+**Glimpses parked from the same hunt**: `<meter>`/`<progress>` as native-visualization format kinds (data bars as spec furniture); `<caption>` as the table-name seat for future cross-table references.
+
+**A law-candidate noted, thrice observed**: whenever this design needs a machine-form/human-form split, HTML already built the seat, because accessibility needed it first — data/time for values, abbr for names, scope/headers for ranges. Not carved as a stone; it graduates if it survives coming rounds.
+
 ## 2026-07-16 — Round: cell values and formats
 
 **Format is a declaration; the cell anatomy completes** (settled, circled) — raw value in an attribute (machine's truth), formatted text in content (reader's truth), `content = format(value, spec, lang)` enforced by the same engine and dispatch as formulas — *because* the two-truths structure settled for formulas extends without new machinery (C8 was already "keep the declarations true"; a format is one more declaration kind), and content must stay what a reader reads (Egildo's rule: formatted data as content), *instead of* Excel's raw-stored-format-at-display, which would put machine text where readers look.
