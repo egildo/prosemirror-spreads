@@ -2,6 +2,14 @@
 
 The venue's memory between sessions: what changed, because of what, instead of which rejected road. The working documents hold the present; this file holds the past. One entry per session, written at close, religiously.
 
+## 2026-07-17 — Round: formulas v1, and the tbody ruling
+
+**A name denotes its tbody cells** (settled, Egildo) — thead names, tbody is the data, tfoot speaks *about* the data — *because* the header-association algorithm alone would put the manual's own tfoot total inside its own range (a self-containing sum, discovered while tracing `=SUM(Prezzo)`), and the anatomy we took seriously is exactly the thing that can bound aggregation, *instead of* Excel's dodge (explicit ranges stop where you point — we don't point) or a hacky exclude-yourself rule. Carved consequences: the resolver is the association algorithm *filtered by region* (C4 refined — same names, narrower quantifier; AT still hears the full association); self-reference inside tbody is an honest cycle; multiple-tbody growth is monotonic (a name means the union across row groups, slices narrow — v1 semantics survive the upgrade untouched); and subtotals belong in tfoot's multiple rows, where double counting is impossible by construction — the cycle error inside tbody is the design teaching where summaries live (glimpse parked for the partition round).
+
+**The v1 formula cut** (settled as scope) — number literals, arithmetic with parentheses, the manual's five functions, references = bare names plus intersections — *because* it is the smallest language that writes every formula in the manual's showcase, *instead of* pulling groups, partitions, or conditionals into v1 (groups fall out naturally: they need spanning headers, already forbidden on the merged-cells side). Names lex as bare identifiers and spaces demand an `abbr` — the escape hatch is spec furniture, no quoting syntax invented. The serialized grammar is canonical and invariant (dot decimal, comma separators): Excel's localized-formula wound, refused. New opens: `COUNT`'s exact meaning; **error markup promoted to pre-v1 gate**. Battleground 2's build order noted in §10; the C16 adapter is release cargo but its own battleground after the kernel.
+
+**Battleground 1 sealed and reconciled** — committed on its branch, fast-forwarded into main (the probe passed and the documents had already absorbed the findings); **battleground 2 forked from main**: the frontier — grid map, region-filtered resolver, name graph, evaluator.
+
 ## 2026-07-17 — Battleground 1: the named bet, pressed and held
 
 **First code session; the branch `battleground-1` forked from main, per the method.** The probe's target was §6's named bet — cells as atoms with node-view-owned buffers, the focus dance, buffers surviving redraws mid-edit — *because* everything leans on it and it was cheap to test, expensive to be wrong, *instead of* starting anywhere comfortable.
