@@ -1,26 +1,14 @@
-import { Plugin, PluginKey } from "prosemirror-state"
-
-/// Options accepted by [`spreads`](#spreads).
-export interface SpreadsOptions {}
-
-/// The plugin's own state, tracked through transactions.
-export interface SpreadsState {}
-
-/// The key under which the plugin's state lives, for reading it back
-/// from an editor state: `spreadsKey.getState(state)`.
-export const spreadsKey = new PluginKey<SpreadsState>("spreads")
-
-/// Create the spreads plugin.
-export function spreads(options: SpreadsOptions = {}): Plugin<SpreadsState> {
-  return new Plugin<SpreadsState>({
-    key: spreadsKey,
-    state: {
-      init() {
-        return {}
-      },
-      apply(tr, value) {
-        return value
-      },
-    },
-  })
-}
+export { spreadsNodes, spreadsNodeTypes, isCellType } from "./schema"
+export type { SpreadsRole, SpreadsNodesOptions } from "./schema"
+export { spreads, spreadsPlugin } from "./plugin"
+export type { SpreadsOptions } from "./plugin"
+export { spreadsKey } from "./state"
+export type { SpreadsState, EditingState, SpreadsMeta } from "./state"
+export {
+  insertTable,
+  startEditing,
+  stopEditing,
+  settleCell,
+  selectRelativeCell,
+  clearSelectedCells,
+} from "./commands"

@@ -1,12 +1,19 @@
+import { Schema } from "prosemirror-model"
 import { EditorState } from "prosemirror-state"
 import { EditorView } from "prosemirror-view"
-import { schema } from "prosemirror-schema-basic"
+import { schema as base } from "prosemirror-schema-basic"
 import { keymap } from "prosemirror-keymap"
 import { baseKeymap } from "prosemirror-commands"
 import { history, undo, redo } from "prosemirror-history"
-import { spreads, spreadsKey } from "prosemirror-spreads"
+import * as spreadsLib from "prosemirror-spreads"
+import { spreads, spreadsNodes, spreadsKey, insertTable } from "prosemirror-spreads"
 import "prosemirror-view/style/prosemirror.css"
 import "./style.css"
+
+const schema = new Schema({
+  nodes: base.spec.nodes.append(spreadsNodes()),
+  marks: base.spec.marks,
+})
 
 const state = EditorState.create({
   schema,
@@ -14,7 +21,7 @@ const state = EditorState.create({
     history(),
     keymap({ "Mod-z": undo, "Mod-y": redo, "Mod-Shift-z": redo }),
     keymap(baseKeymap),
-    spreads(),
+    ...spreads(),
   ],
 })
 
@@ -25,6 +32,15 @@ const view = new EditorView(document.querySelector("#editor")!, {
     view.updateState(next)
     renderInspector(next)
   },
+})
+
+// Exposed for probing from the console: dispatching "remote" transactions
+// against an open edit buffer is exactly the dragon the first probe hunts.
+Object.assign(window as object, { view, spreadsLib })
+
+document.querySelector("#insert-table")!.addEventListener("click", () => {
+  insertTable()(view.state, view.dispatch)
+  view.focus()
 })
 
 const inspector = document.querySelector("#inspector")!

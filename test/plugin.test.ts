@@ -4,19 +4,19 @@ import { schema } from "prosemirror-schema-basic"
 import { spreads, spreadsKey } from "prosemirror-spreads"
 
 function createState() {
-  return EditorState.create({ schema, plugins: [spreads()] })
+  return EditorState.create({ schema, plugins: [...spreads()] })
 }
 
 describe("spreads", () => {
   it("installs and exposes its state through the key", () => {
     const state = createState()
-    expect(spreadsKey.getState(state)).toBeDefined()
+    expect(spreadsKey.getState(state)).toEqual({ editing: null })
   })
 
   it("carries its state across transactions", () => {
     const state = createState()
     const next = state.apply(state.tr.insertText("hello"))
     expect(next.doc.textContent).toBe("hello")
-    expect(spreadsKey.getState(next)).toBeDefined()
+    expect(spreadsKey.getState(next)).toEqual({ editing: null })
   })
 })

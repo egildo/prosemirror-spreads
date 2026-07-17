@@ -34,6 +34,24 @@ h2 {
   margin: 0 0 0.5rem;
 }
 
+#toolbar {
+  margin: 0 0 0.75rem;
+}
+
+#toolbar button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+}
+
+#toolbar button:hover {
+  background: #f3f3f3;
+}
+
 #editor {
   background: white;
   border: 1px solid #ddd;
