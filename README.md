@@ -31,6 +31,7 @@ The venue runs on working documents, not memory: [method.md](method.md) is the p
 ## Notes
 
 - **Plugin order matters**: `...spreads()` goes before any keymap that binds keys meaningful in grid mode (Enter, Tab, Backspace, arrows) — plugin order is ProseMirror's priority system, and a preceding `baseKeymap` will delete a selected cell instead of clearing it. The manual's setup shows the safe order.
+- **Grid keys are rebindable**: the default bindings are the exported `gridKeys` map; pass `keys: false` to `spreads()` and bind them through your own keymap, or pass a custom map to replace them. Type-to-replace stays intrinsic either way.
 - ProseMirror core packages (`prosemirror-model`, `prosemirror-state`, `prosemirror-view`) are peer dependencies; the consumer's editor owns them. They are also dev dependencies so the playground and tests run here.
 - TypeScript 7 (the native compiler) does the typechecking; tsdown builds the bundle because tsup's d.ts generation needs the old TS 5 JS API.
 - Development happens in battlegrounds — branches where the design meets reality; lessons reconcile into the documents and main. See method.md.

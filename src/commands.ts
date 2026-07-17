@@ -61,8 +61,21 @@ export function insertTable(rows = 3, cols = 3, options: { headerRow?: boolean }
   }
 }
 
-/// Enter edit mode on the cell at `pos`. With a `seed`, the buffer opens
-/// holding the seed instead of the cell's content — typing replaces.
+/// Enter edit mode on the selected cell — the public, selection-driven
+/// verb (menus can dry-run it; keymaps bind it). With a `seed`, the buffer
+/// opens holding the seed instead of the cell's content — typing replaces.
+export function editSelectedCell(seed: string | null = null): Command {
+  return (state, dispatch) => {
+    const sel = state.selection
+    if (!(sel instanceof NodeSelection) || !isCellType(sel.node.type)) return false
+    return startEditing(sel.from, seed)(state, dispatch)
+  }
+}
+
+/// Enter edit mode on the cell at `pos` — the node-view seam's form (the
+/// view knows its position; menus and keymaps want [`editSelectedCell`](#editSelectedCell)).
+/// With a `seed`, the buffer opens holding the seed instead of the cell's
+/// content.
 export function startEditing(pos: number, seed: string | null = null): Command {
   return (state, dispatch) => {
     const node = state.doc.nodeAt(pos)

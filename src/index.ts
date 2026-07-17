@@ -6,12 +6,14 @@ export { spreadsKey } from "./state"
 export type { SpreadsState, EditingState, SpreadsMeta } from "./state"
 export {
   insertTable,
+  editSelectedCell,
   startEditing,
   stopEditing,
   settleCell,
   selectRelativeCell,
   clearSelectedCells,
 } from "./commands"
+export { gridKeys, keyNameOf } from "./keys"
 export { gridMap, GridMap } from "./gridmap"
 export type { Region, RowMeta, GridProblem } from "./gridmap"
 export { nameTable, nameCells, intersectionCell } from "./names"

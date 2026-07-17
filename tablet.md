@@ -26,12 +26,12 @@ The grid is the primary surface; text editing is a mode you enter and leave. Wor
 
 We will explore ways to add functions and automations, making this also a "lil spreadsheet". The principle commits to the exploration, not yet to any mechanism; this is the venue's frontier and its claims graduate to settled only by surviving.
 
-## P6 — Incremental elegance · settled (2026-07-15, circled)
+## P6 — Incremental elegance · settled (2026-07-15, circled); the venue's identity (ruled 2026-07-18)
 
 Nobody arrives elegant. Semantic markup fails in the market when its rewards feel moral rather than material — behaving like a good boy — so this plugin makes semantics *pay*: meaningful features backed by standards, great relative to document editing (not spreadsheets for banks and finance). The system is an escalator, never a gate: every capability has a bottom step that works on day-zero mess, and the interface actively converts mess into meaning — rulers recede into headers, positional scaffolding upgrades into names, a filled column offers to become the column's rule, the promotion affordance retires itself. One instinct, all the outfits. Wherever a cliff appears — capability denied until semantics exist — the design is wrong there (C11 was repaired by exactly this test).
 
+**This stone is also the venue's identity** (Egildo's ruling, 2026-07-18, closing the question open since 2026-07-14): the heart is neither the table core nor the functions layer but the escalator between mess and meaning. Confirmed by evidence, not argument — battleground 2 showed the evaluator ordinary and the names-from-markup extraordinary; the arena's first smoke test showed a `#NAME?` healing to 42 the instant a header was christened, the escalator observed live and undesigned. The venue's sayable line, ratified the same day: **"we take seriously THEAD and TFOOT, scope row and scope col."** The identity said concretely — taking the spec's furniture seriously is how mess becomes meaning.
+
 ## Open questions
 
-- **Venue identity layering** · open, likely dissolved — Venture-grade rigor on the table core, marked probe on the frontier (the coach's proposal); the counter-read — that the functions are the heart — was never ruled on. P6 proposes the dissolution: the heart is neither the table core nor the functions layer but the escalator between mess and meaning. Egildo to confirm closure. The sayable line of 2026-07-14, *"we take seriously THEAD and TFOOT, scope row and scope col,"* still waits outside, unratified.
-
-All other open questions live where their rounds will land, one seat each, in the architecture (second edition, organized along the seam map): column width (§7 presentation), schema residue and cell content (§1 schema), value XOR formula (§5 interaction), the seams-as-packages question (C15).
+None at the principle level — the last (venue identity layering, open since 2026-07-14) dissolved into P6 on 2026-07-18: the two-layer reading and the functions-as-heart reading were not chosen between but dissolved, the escalator being the heart of both. All working open questions live where their rounds will land, one seat each, in the architecture (second edition, organized along the seam map): column width (§7 presentation), schema residue and cell content (§1 schema), value XOR formula (§5 interaction), the seams-as-packages question (C15).

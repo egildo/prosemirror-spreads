@@ -1,18 +1,26 @@
 import { NodeSelection, Plugin } from "prosemirror-state"
-import type { Transaction } from "prosemirror-state"
+import type { Command, Transaction } from "prosemirror-state"
 import type { ResolvedPos } from "prosemirror-model"
 import type { EditorView } from "prosemirror-view"
 import { Decoration, DecorationSet } from "prosemirror-view"
 import { CellView } from "./cellview"
-import { clearSelectedCells, selectRelativeCell, startEditing } from "./commands"
+import { clearSelectedCells, startEditing } from "./commands"
 import { enforceDeclarations } from "./enforce"
+import { gridKeys, keyNameOf } from "./keys"
 import { isCellType } from "./schema"
 import type { SpreadsMeta, SpreadsState } from "./state"
 import { spreadsKey } from "./state"
 import { baseTheme } from "./theme"
 
 /// Options accepted by [`spreads`](#spreads).
-export interface SpreadsOptions {}
+export interface SpreadsOptions {
+  /// Grid-mode key bindings. Defaults to [`gridKeys`](#gridKeys); pass a
+  /// custom map to replace them, or `false` to install none and bind
+  /// `gridKeys` through your own keymap instead. Intrinsic input handling
+  /// (type-to-replace, the beforeinput interception) is not affected —
+  /// it is shape protection, not a binding.
+  keys?: false | Record<string, Command>
+}
 
 function applyMeta(tr: Transaction, value: SpreadsState): SpreadsState {
   const meta = tr.getMeta(spreadsKey) as SpreadsMeta | undefined
@@ -45,7 +53,8 @@ function adoptStylesheet(view: EditorView): () => void {
 
 /// The core plugin: mode state, cell node views, grid-mode keys, and the
 /// constructed stylesheet.
-export function spreadsPlugin(_options: SpreadsOptions = {}): Plugin<SpreadsState> {
+export function spreadsPlugin(options: SpreadsOptions = {}): Plugin<SpreadsState> {
+  const bindings = options.keys === false ? null : (options.keys ?? gridKeys)
   return new Plugin<SpreadsState>({
     key: spreadsKey,
     state: {
@@ -104,21 +113,14 @@ export function spreadsPlugin(_options: SpreadsOptions = {}): Plugin<SpreadsStat
         if (spreadsKey.getState(state)?.editing) return false
         const sel = state.selection
         if (!(sel instanceof NodeSelection) || !isCellType(sel.node.type)) return false
-        switch (event.key) {
-          case "Enter":
-            return startEditing(sel.from)(state, view.dispatch)
-          case "Tab":
-            return selectRelativeCell(event.shiftKey ? -1 : 1)(state, view.dispatch)
-          case "ArrowRight":
-            return selectRelativeCell(1)(state, view.dispatch)
-          case "ArrowLeft":
-            return selectRelativeCell(-1)(state, view.dispatch)
-          case "Backspace":
-          case "Delete":
-            return clearSelectedCells(state, view.dispatch)
+        // Rebindable vocabulary first: the effective bindings map.
+        if (bindings) {
+          const bound = bindings[keyNameOf(event)]
+          if (bound && bound(state, view.dispatch)) return true
         }
         // Type to replace: a printable character opens the buffer seeded
         // with itself, discarding the standing content — spreadsheet law.
+        // Intrinsic, not a binding: it guards the document's shape.
         if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey)
           return startEditing(sel.from, event.key)(state, view.dispatch)
         return false
