@@ -2,6 +2,10 @@
 
 The venue's memory between sessions: what changed, because of what, instead of which rejected road. The working documents hold the present; this file holds the past. One entry per session, written at close, religiously.
 
+## 2026-07-16 — The Manual drafted whole
+
+**The mock manual written as the cycle demands** — ten chapters, confident present tense, the software described as shipped — *because* the cycle's next act after Tablet and Architecture is the Manual, and the christening had to happen somewhere real (names are spoken in it as claims), *instead of* leaving the stub until code forced ad-hoc naming. **Claims that outrun settled doctrine, pre-registered for red-pen and reality** (the architecture keeps their open marks): typing-replaces-formula asserts the open value-XOR-formula question one way; Escape-cancels-edit, the header context menu ("Short name", column types), fill's number-series behavior, the command and variable names (`spreadsNodes`, `insertTable`, `--spreads-*`), the error-token spellings, and the starter function set are all manual-invented and unruled. The scaffolding add-on is described without deciding C15's packaging.
+
 ## 2026-07-16 — Round: the method stated whole
 
 **The cycle carved into method.md** (Egildo) — Tablet → Architecture → mock Manual → make it real → learn → recarve; battlegrounds are branches whose memory lives in the repo and reconciles into the documents; reality always wins — documents true, code true to documents — *because* the venue had only the round-scale loop written while the cycle-scale method lived in Egildo's head, *instead of* leaving venture pacing to session improvisation.
