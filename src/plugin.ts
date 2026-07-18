@@ -3,10 +3,10 @@ import type { Command, Transaction } from "prosemirror-state"
 import type { ResolvedPos } from "prosemirror-model"
 import type { EditorView } from "prosemirror-view"
 import { Decoration, DecorationSet } from "prosemirror-view"
-import { CellView } from "./cellview"
 import { clearSelectedCells, startEditing } from "./commands"
 import { enforceDeclarations } from "./enforce"
 import { gridKeys, keyNameOf } from "./keys"
+import { TableView } from "./tableview"
 import { isCellType } from "./schema"
 import type { SpreadsMeta, SpreadsState } from "./state"
 import { spreadsKey } from "./state"
@@ -43,6 +43,10 @@ function cellAround($pos: ResolvedPos): number | null {
 
 function adoptStylesheet(view: EditorView): () => void {
   const root = view.root as Document | ShadowRoot
+  // Environments without constructable-stylesheet support (jsdom, old
+  // engines) get an unstyled but functional grid — presentation is the
+  // one layer allowed to degrade.
+  if (!("adoptedStyleSheets" in root) || typeof CSSStyleSheet !== "function") return () => {}
   const sheet = new CSSStyleSheet()
   sheet.replaceSync(baseTheme)
   root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet]
@@ -91,17 +95,34 @@ export function spreadsPlugin(options: SpreadsOptions = {}): Plugin<SpreadsState
         return NodeSelection.create(view.state.doc, cellPos)
       },
       nodeViews: {
-        table_cell: (node, view, getPos) => new CellView(node, view, getPos),
-        table_header: (node, view, getPos) => new CellView(node, view, getPos),
+        // C17: the table is the black box; cells are its internal components.
+        table: (node, view, getPos) => new TableView(node, view, getPos, bindings),
       },
       decorations(state) {
-        const editing = spreadsKey.getState(state)?.editing
-        if (!editing) return null
-        const node = state.doc.nodeAt(editing.pos)
-        if (!node || !isCellType(node.type)) return null
-        return DecorationSet.create(state.doc, [
-          Decoration.node(editing.pos, editing.pos + node.nodeSize, { "data-editing": "true" }),
-        ])
+        // Probe finding (battleground 3): inner decorations of a
+        // contentDOM-less node view are ignored entirely — they can't
+        // trigger update. The trigger must be the table's OUTER
+        // decoration: a signature attribute that changes whenever the
+        // edit seam or the cell selection inside that table moves. The
+        // attribute is stage makeup on the working DOM; the view reads
+        // the truth from the state.
+        const editing = spreadsKey.getState(state)?.editing ?? null
+        const sel = state.selection
+        const selPos = sel instanceof NodeSelection && isCellType(sel.node.type) ? sel.from : null
+        if (editing == null && selPos == null) return null
+        const decos: Decoration[] = []
+        state.doc.descendants((node, pos) => {
+          if (node.type.spec.spreadsRole !== "table") return true
+          const end = pos + node.nodeSize
+          const parts = [
+            editing != null && editing.pos > pos && editing.pos < end ? `e${editing.pos}:${editing.seed ?? ""}` : "",
+            selPos != null && selPos > pos && selPos < end ? `s${selPos}` : "",
+          ]
+          const sig = parts.filter(Boolean).join("/")
+          if (sig) decos.push(Decoration.node(pos, end, { "data-grid-state": sig }))
+          return false
+        })
+        return decos.length ? DecorationSet.create(state.doc, decos) : null
       },
       handleDoubleClickOn(view, _pos, node, nodePos) {
         if (!isCellType(node.type)) return false

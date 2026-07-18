@@ -23,7 +23,10 @@ export const baseTheme = `
   font-weight: 600;
   text-align: left;
 }
-.ProseMirror td.ProseMirror-selectednode, .ProseMirror th.ProseMirror-selectednode {
+.ProseMirror td:focus, .ProseMirror th:focus {
+  outline: none;
+}
+.ProseMirror td[data-selected], .ProseMirror th[data-selected] {
   outline: 2px solid var(--spreads-selection, #2563eb);
   outline-offset: -2px;
   background: var(--spreads-selection-fill, rgb(37 99 235 / 8%));
