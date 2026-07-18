@@ -2,6 +2,10 @@
 
 The venue's memory between sessions: what changed, because of what, instead of which rejected road. The working documents hold the present; this file holds the past. One entry per session, written at close, religiously.
 
+## 2026-07-19 — The merge talk: C17 settles, the black box is doctrine
+
+**Battleground 3 reconciled on Egildo's ruling** — the branch fast-forwarded into main and C17's mark graduated from *settled as direction* to **settled**: the first settled-as-direction confirm path has now been walked end to end (talk-settle → pinned tests → battleground → merge talk → graduation), which was one of the two things the method review listed as untested — *because* reality voted through all four pins in both the playground and the arena's built package, *instead of* pressing by hand first (offered and declined; the arena stays open on any branch for IME hands-on whenever wanted). Graduation carve: the interim keymap-ordering law is marked mostly dissolved (its named dissolution event arrived; the residual PM-backstop path keeps the documented order and the both-ways tests); §6 speaks in the present tense (cells are internal components, the focus dance is gone — direct synchronous focus, confirmed); the cell anatomy item re-seated inside the box. The arena's main reconciled back to tracking plugin main.
+
 ## 2026-07-19 — Battleground 3: the black box breathes
 
 **C17 made real, on its branch, pins pressed and held.** One `TableView` owns the entire grid DOM — no `contentDOM`, no contenteditable inside, native-input buffers carried whole from battleground 1, keyed-by-node-identity diff for rows and cells, roving tabindex, the full ARIA grid pattern as stage makeup (`grid`/`rowgroup`/`row`/`columnheader`/`gridcell` confirmed in the accessibility tree). Pressed in the playground and then through the arena's built package (checkpoint reinstall from the branch): the manual's flow computes 42, the cascade rides the settle, undo unwinds one step, emission carries zero fingerprints of the box — *because* the capriccio's ruling deserved reality's vote before graduating, *instead of* trusting two rounds of talk.
