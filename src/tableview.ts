@@ -2,9 +2,10 @@ import type { Node } from "prosemirror-model"
 import { NodeSelection } from "prosemirror-state"
 import type { Command } from "prosemirror-state"
 import type { EditorView, NodeView } from "prosemirror-view"
-import { editSelectedCell, setColumnWidths, settleCell, stopEditing } from "./commands"
+import { clearSelectedCells, editSelectedCell, setColumnWidths, settleCell, stopEditing } from "./commands"
 import type { SettleAdvance } from "./commands"
 import { keyNameOf } from "./keys"
+import { isCellType } from "./schema"
 import { spreadsKey } from "./state"
 
 /// C17, in code: the table is a black box to the editor view. This one
@@ -53,6 +54,11 @@ class CellComp {
   pos = -1
   input: HTMLInputElement | null = null
   private settling = false
+  /// Excel's distinction, imported whole: a buffer opened by typing
+  /// (seeded) is entry mode — arrows settle it and move; a buffer opened
+  /// deliberately (Enter, F2, double-click) is edit mode — arrows stay
+  /// native and move the caret.
+  private entryMode = false
 
   constructor(
     node: Node,
@@ -100,6 +106,7 @@ class CellComp {
   private openBuffer(seed: string | null) {
     const input = document.createElement("input")
     this.input = input
+    this.entryMode = seed != null
     input.value = seed ?? (this.node.attrs.formula as string | null) ?? this.node.textContent
     input.addEventListener("keydown", this.onKeydown)
     input.addEventListener("blur", this.onBlur)
@@ -123,36 +130,49 @@ class CellComp {
   }
 
   private onKeydown = (event: KeyboardEvent) => {
-    // stopPropagation as well as preventDefault: inside the black box we
-    // are our own stopEvent — a consumed Enter that kept bubbling would
-    // reach the grid's key handler after the buffer closed and re-open
-    // the edit (probe finding, battleground 3).
+    // The buffer owns every keystroke — its caret, its selection, its
+    // native undo. A consumed Enter that kept bubbling would re-open the
+    // edit (probe finding, battleground 3); and now that the box passes
+    // unclaimed keys to the editor's courts, an unstopped Mod-z here would
+    // reach the document's history instead of the input's own.
+    event.stopPropagation()
     if (event.key === "Enter") {
       event.preventDefault()
-      event.stopPropagation()
       // The spreadsheet's directions: Enter lands the value and moves down.
       this.settle(event.shiftKey ? "up" : "down")
     } else if (event.key === "Tab") {
       event.preventDefault()
-      event.stopPropagation()
       this.settle(event.shiftKey ? "prev" : "next")
     } else if (event.key === "Escape") {
       event.preventDefault()
-      event.stopPropagation()
       this.cancel()
+    } else if (this.entryMode && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      // Entry mode: bare arrows settle and move — type, ArrowDown, type.
+      const dir =
+        event.key === "ArrowDown" ? "down"
+        : event.key === "ArrowUp" ? "up"
+        : event.key === "ArrowRight" ? "right"
+        : event.key === "ArrowLeft" ? "left"
+        : null
+      if (dir) {
+        event.preventDefault()
+        this.settle(dir)
+      }
     }
   }
 
   private onBlur = () => {
-    if (!this.settling) this.settle(null, false)
+    if (!this.settling) this.settle(null)
   }
 
-  private settle(advance: SettleAdvance, refocus = true) {
+  private settle(advance: SettleAdvance) {
     if (this.settling || !this.input || this.pos < 0) return
     this.settling = true
     settleCell(this.pos, this.input.value, advance)(this.view.state, this.view.dispatch)
     this.settling = false
-    if (refocus) this.el.focus()
+    // Focus follows the selection: applyState focused the advanced-to cell
+    // during the dispatch. The old cell must not steal it back (audit
+    // finding: it did, and a screen reader announced the wrong cell).
   }
 
   private cancel() {
@@ -369,7 +389,7 @@ export class TableView implements NodeView {
   private applyState() {
     const state = this.view.state
     const sel = state.selection
-    const selectedPos = sel instanceof NodeSelection && sel.node.type.spec.spreadsRole ? sel.from : null
+    const selectedPos = sel instanceof NodeSelection && isCellType(sel.node.type) ? sel.from : null
     const editing = spreadsKey.getState(state)?.editing ?? null
     const hasFocus = this.dom.contains(document.activeElement) || this.view.hasFocus()
     for (const section of this.sections)
@@ -537,18 +557,42 @@ export class TableView implements NodeView {
     const state = this.view.state
     if (spreadsKey.getState(state)?.editing) return
     const sel = state.selection
-    if (!(sel instanceof NodeSelection) || !sel.node.type.spec.spreadsRole) return
+    // Only a CELL selection speaks the grid's vocabulary. A whole-table
+    // selection (the Escape ladder's upper rung) belongs to the editor:
+    // everything falls through — typing replaces, Backspace deletes,
+    // arrows leave.
+    if (!(sel instanceof NodeSelection) || !isCellType(sel.node.type)) return
+    const consume = () => {
+      event.preventDefault()
+      event.stopPropagation()
+    }
     if (this.bindings) {
       const bound = this.bindings[keyNameOf(event)]
-      if (bound && bound(state, this.view.dispatch)) {
-        event.preventDefault()
-        return
-      }
+      if (bound && bound(state, this.view.dispatch)) return consume()
     }
     if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
-      event.preventDefault()
+      consume()
       editSelectedCell(event.key)(state, this.view.dispatch)
+      return
     }
+    // Shape protection, not a binding: a MODIFIED Backspace/Delete
+    // (Mod-Backspace and friends) over a selected cell clears content — a
+    // foreign deleteSelection would remove the cell node itself. Unmodified
+    // variants are the rebindable vocabulary's business above.
+    if ((event.metaKey || event.ctrlKey || event.altKey) && (event.key === "Backspace" || event.key === "Delete")) {
+      consume()
+      clearSelectedCells(state, this.view.dispatch)
+      return
+    }
+    // The clamp law, active only while grid bindings are: an arrow the
+    // grid refused goes nowhere rather than to the editor's document-order
+    // defaults (Selection.near would wrap a clamped ArrowUp into the
+    // previous cell). Under `keys: false` there is no grid vocabulary to
+    // defend — everything falls through to the consumer's own keymaps.
+    // Every other unclaimed key belongs to the editor's courts — stopEvent
+    // passes key events through, so an unconsumed chord reaches the host's
+    // keymaps (undo, and the rest).
+    if (this.bindings && event.key.startsWith("Arrow")) consume()
   }
 
   /// ProseMirror routes selections that fall inside the black box here.
@@ -564,9 +608,12 @@ export class TableView implements NodeView {
     this.dom.classList.remove("ProseMirror-selectednode")
   }
 
-  // Everything inside the box is the box's business.
-  stopEvent(): boolean {
-    return true
+  // Everything inside the box is the box's business — except the keys it
+  // does not claim: those pass through to the editor's courts (the box
+  // consumed its own with stopPropagation before ProseMirror ever sees
+  // them, and the buffer stops all of its).
+  stopEvent(event: Event): boolean {
+    return !event.type.startsWith("key")
   }
 
   ignoreMutation(): boolean {

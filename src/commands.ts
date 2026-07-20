@@ -1,7 +1,7 @@
 import type { Node } from "prosemirror-model"
 import { Fragment } from "prosemirror-model"
 import type { Command } from "prosemirror-state"
-import { NodeSelection } from "prosemirror-state"
+import { NodeSelection, Selection } from "prosemirror-state"
 import { gridMap } from "./gridmap"
 import { isCellType, spreadsNodeTypes } from "./schema"
 import type { SpreadsMeta } from "./state"
@@ -136,9 +136,11 @@ export const stopEditing: Command = (state, dispatch) => {
 }
 
 /// Where a settle sends the selection: the spreadsheet's directions.
-/// `down`/`up` walk the grid column (Enter / Shift-Enter); `next`/`prev`
-/// walk document order, wrapping at row ends (Tab / Shift-Tab); null stays.
-export type SettleAdvance = "down" | "up" | "next" | "prev" | null
+/// `down`/`up`/`right`/`left` walk the grid, clamping at edges (Enter,
+/// Shift-Enter, and entry-mode arrows); `next`/`prev` walk document order,
+/// wrapping at row ends (Tab / Shift-Tab); null leaves the selection
+/// where it is — the blur settle's form.
+export type SettleAdvance = "down" | "up" | "right" | "left" | "next" | "prev" | null
 
 /// Settle the cell at `pos`: commit the buffer's text, close the edit
 /// seam, and place the selection — all in one transaction, one undo step
@@ -166,14 +168,19 @@ export function settleCell(pos: number, text: string, advance: SettleAdvance = n
       }
       tr.setMeta(spreadsKey, { type: "stopEditing" } satisfies SpreadsMeta)
       // The cell's own start position survives the in-cell edits above, so
-      // the walk runs on tr.doc from the same pos.
-      const target =
-        advance === "next" ? relativeCellPos(tr.doc, pos, 1)
-        : advance === "prev" ? relativeCellPos(tr.doc, pos, -1)
-        : advance === "down" ? deltaCellPos(tr.doc, pos, 1, 0)
-        : advance === "up" ? deltaCellPos(tr.doc, pos, -1, 0)
-        : null
-      tr.setSelection(NodeSelection.create(tr.doc, target ?? pos))
+      // the walk runs on tr.doc from the same pos. Without an advance the
+      // selection stays wherever the user put it — a blur settle must not
+      // yank it back to the edited cell.
+      if (advance) {
+        const target =
+          advance === "next" ? relativeCellPos(tr.doc, pos, 1)
+          : advance === "prev" ? relativeCellPos(tr.doc, pos, -1)
+          : advance === "down" ? deltaCellPos(tr.doc, pos, 1, 0)
+          : advance === "up" ? deltaCellPos(tr.doc, pos, -1, 0)
+          : advance === "right" ? deltaCellPos(tr.doc, pos, 0, 1)
+          : deltaCellPos(tr.doc, pos, 0, -1)
+        tr.setSelection(NodeSelection.create(tr.doc, target ?? pos))
+      }
       dispatch(tr.scrollIntoView())
     }
     return true
@@ -192,6 +199,38 @@ export function selectCellDelta(dRow: number, dCol: number): Command {
     if (dispatch) dispatch(state.tr.setSelection(NodeSelection.create(state.doc, target)).scrollIntoView())
     return true
   }
+}
+
+/// Leave the table vertically — the arrows' document exit. When the grid
+/// walk has nowhere further to go (top or bottom row), the selection steps
+/// out into the prose before or after the table. Refuses to fire when
+/// there is nowhere outside to land (Selection.near bending back inside
+/// the table means the table sits at the document's edge — clamp).
+export function exitTable(dir: -1 | 1): Command {
+  return (state, dispatch) => {
+    const sel = state.selection
+    if (!(sel instanceof NodeSelection) || !isCellType(sel.node.type)) return false
+    const around = tableAround(state.doc, sel.from)
+    if (!around) return false
+    const from = dir < 0 ? around.tablePos : around.tablePos + around.table.nodeSize
+    const target = Selection.near(state.doc.resolve(from), dir)
+    const end = around.tablePos + around.table.nodeSize
+    if (target.head > around.tablePos && target.head < end) return false
+    if (dispatch) dispatch(state.tr.setSelection(target).scrollIntoView())
+    return true
+  }
+}
+
+/// The Escape ladder's first rung: from a cell to its whole table. A table
+/// node-selection belongs to the editor — typing replaces it, Backspace
+/// deletes it, arrows leave it.
+export const selectEnclosingTable: Command = (state, dispatch) => {
+  const sel = state.selection
+  if (!(sel instanceof NodeSelection) || !isCellType(sel.node.type)) return false
+  const around = tableAround(state.doc, sel.from)
+  if (!around) return false
+  if (dispatch) dispatch(state.tr.setSelection(NodeSelection.create(state.doc, around.tablePos)).scrollIntoView())
+  return true
 }
 
 /// In grid mode, walk the selection to the neighboring cell in document

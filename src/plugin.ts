@@ -144,6 +144,12 @@ export function spreadsPlugin(options: SpreadsOptions = {}): Plugin<SpreadsState
         // Intrinsic, not a binding: it guards the document's shape.
         if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey)
           return startEditing(sel.from, event.key)(state, view.dispatch)
+        // Shape protection, mirrored from the box: modified Backspace/Delete
+        // (Mod-Backspace and friends) must never reach a foreign
+        // deleteSelection, which would remove the cell node itself.
+        // Unmodified variants stay the rebindable vocabulary's business.
+        if ((event.metaKey || event.ctrlKey || event.altKey) && (event.key === "Backspace" || event.key === "Delete"))
+          return clearSelectedCells(state, view.dispatch)
         return false
       },
       handleDOMEvents: {

@@ -12,6 +12,8 @@ export {
   settleCell,
   selectRelativeCell,
   selectCellDelta,
+  selectEnclosingTable,
+  exitTable,
   setColumnWidths,
   clearSelectedCells,
 } from "./commands"

@@ -17,6 +17,8 @@ import {
   settleCell,
   selectRelativeCell,
   selectCellDelta,
+  selectEnclosingTable,
+  exitTable,
   setColumnWidths,
   clearSelectedCells,
 } from "prosemirror-spreads"
@@ -156,6 +158,26 @@ describe("settleCell", () => {
     expect(settled.selection.from).toBe(cells[0]!)
   })
 
+  it("right/left advances walk the grid, clamping like the arrows", () => {
+    const { state, cells } = withTable()
+    const settled = apply(state, settleCell(cells[0]!, "x", "right"))
+    expect(settled.selection.from).toBe(cellPositions(settled.doc)[1]!)
+    const edge = apply(state, settleCell(cells[2]!, "y", "right"))
+    expect(edge.selection.from).toBe(cells[2]!)
+  })
+
+  it("a settle without an advance leaves a moved selection alone — the blur contract", () => {
+    const { state, cells } = withTable()
+    const editing = apply(state, startEditing(cells[0]!))
+    // The user clicked another cell; its pointerdown selected it, then the
+    // buffer's blur settles. The settle must not yank the selection back.
+    const moved = editing.apply(editing.tr.setSelection(NodeSelection.create(editing.doc, cells[4]!)))
+    const settled = apply(moved, settleCell(cells[0]!, "typed", null))
+    expect(settled.doc.nodeAt(cells[0]!)!.textContent).toBe("typed")
+    // The clicked cell stays selected (its position mapped through the edit).
+    expect(settled.selection.from).toBe(cellPositions(settled.doc)[4]!)
+  })
+
   it("settling an empty string empties the cell", () => {
     const { state, cells } = withTable()
     const filled = apply(state, settleCell(cells[0]!, "abc"))
@@ -293,6 +315,56 @@ describe("setColumnWidths", () => {
   })
 })
 
+describe("the document boundary", () => {
+  // A table living between paragraphs — the exit commands' home ground.
+  function withProse() {
+    const types = spreadsNodeTypes(schema)
+    const td = (t: string) => types.cell!.create(null, t ? schema.text(t) : null)
+    const table = types.table!.create(null, [
+      types.body!.create(null, [
+        types.row!.create(null, [td("a"), td("b")]),
+        types.row!.create(null, [td("c"), td("d")]),
+      ]),
+    ])
+    const doc = schema.node("doc", null, [
+      schema.node("paragraph", null, schema.text("above")),
+      table,
+      schema.node("paragraph", null, schema.text("below")),
+    ])
+    const state = EditorState.create({ schema, doc, plugins: [history(), ...spreads()] })
+    const tablePos = doc.child(0).nodeSize
+    return { state, cells: cellPositions(state.doc), tablePos, tableEnd: tablePos + table.nodeSize }
+  }
+
+  it("the vertical exits land in the prose before and after the table", () => {
+    const { state, cells, tablePos, tableEnd } = withProse()
+    const top = select(state, cells[0]!)
+    const above = apply(top, exitTable(-1))
+    expect(above.selection.head).toBeLessThanOrEqual(tablePos)
+    const bottom = select(state, cells[3]!)
+    const below = apply(bottom, exitTable(1))
+    expect(below.selection.head).toBeGreaterThanOrEqual(tableEnd)
+  })
+
+  it("clamps when the table sits at the document's edge", () => {
+    const { state, cells } = withTable() // the table is the whole document
+    const corner = select(state, cells[0]!)
+    expect(exitTable(-1)(corner, undefined)).toBe(false)
+    const last = select(state, cells[8]!)
+    expect(exitTable(1)(last, undefined)).toBe(false)
+  })
+
+  it("Escape's first rung selects the whole table — and legality lets it stand", () => {
+    const { state, cells, tablePos } = withProse()
+    const onCell = select(state, cells[2]!)
+    const onTable = apply(onCell, selectEnclosingTable)
+    const sel = onTable.selection
+    expect(sel).toBeInstanceOf(NodeSelection)
+    expect(sel.from).toBe(tablePos)
+    expect((sel as NodeSelection).node.type.name).toBe("table")
+  })
+})
+
 describe("selection legality", () => {
   it("coerces a text selection inside an atom cell to the cell's node selection", () => {
     const { state, cells } = withTable()
@@ -307,7 +379,7 @@ describe("selection legality", () => {
 describe("clearSelectedCells", () => {
   it("empties the selected cell and keeps it selected", () => {
     const { state, cells } = withTable()
-    const filled = apply(state, settleCell(cells[4]!, "kaboom"))
+    const filled = select(apply(state, settleCell(cells[4]!, "kaboom")), cells[4]!)
     const cleared = apply(filled, clearSelectedCells)
     expect(cleared.doc.nodeAt(cells[4]!)!.textContent).toBe("")
     expect(cleared.selection.from).toBe(cells[4]!)

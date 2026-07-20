@@ -1,28 +1,50 @@
 import type { Command } from "prosemirror-state"
-import { clearSelectedCells, editSelectedCell, selectCellDelta, selectRelativeCell } from "./commands"
+import {
+  clearSelectedCells,
+  editSelectedCell,
+  exitTable,
+  selectCellDelta,
+  selectEnclosingTable,
+  selectRelativeCell,
+} from "./commands"
+
+/// First command that fires wins — the grid's own small chain (no
+/// prosemirror-commands dependency owed for one combinator).
+const anyOf = (...commands: Command[]): Command => (state, dispatch, view) =>
+  commands.some((command) => command(state, dispatch, view))
 
 /// The grid-mode key vocabulary — rebindable, because keys a consumer may
-/// want to change are bindings, not law. The spreadsheet's grammar: the
-/// four arrows walk the grid two-dimensionally, clamping at edges;
-/// Tab/Shift-Tab walk document order and wrap at row ends; Enter and F2
-/// open the edit. `spreads()` installs these by default; pass a custom map
-/// to replace them, or `keys: false` to install none. The honest limit
-/// (C17): inside the black box keys never reach editor keymaps, so
-/// rebinding happens through the `keys` option — an external
-/// `keymap(gridKeys)` only ever hears the editor-root backstop path. For a
+/// want to change are bindings, not law. The spreadsheet's grammar, welded
+/// to the document's: the four arrows walk the grid, clamping at edges —
+/// except the vertical boundary, which exits into the surrounding prose;
+/// Tab/Shift-Tab walk document order and wrap at row ends; Home/End walk
+/// to the row's edges; Enter, Shift-Enter and F2 open the edit; Escape
+/// climbs the ladder (cell → whole table, which then belongs to the
+/// editor). `spreads()` installs these by default; pass a custom map to
+/// replace them, or `keys: false` to install none — under `keys: false`
+/// the box claims only intrinsic input and every named key falls through
+/// to the editor's courts, so binding this map through your own
+/// `keymap(gridKeys)` works everywhere; with bindings installed, claimed
+/// keys are consumed inside the box before any keymap can see them (the
+/// `keys` option is the first-class rebinding path). For a
 /// prosemirror-verbs host, this map doubles as the grid policy layer:
 /// `{ name: "grid", bindings: gridKeys }`. What is NOT here is intrinsic
-/// and stays in the plugin regardless: type-to-replace and the beforeinput
-/// interception are protection for the document's shape, not preference.
+/// and stays in the plugin regardless: type-to-replace, the beforeinput
+/// interception, and the modified-delete guard are protection for the
+/// document's shape, not preference.
 export const gridKeys: Record<string, Command> = {
   Enter: editSelectedCell(),
+  "Shift-Enter": editSelectedCell(),
   F2: editSelectedCell(),
+  Escape: selectEnclosingTable,
   Tab: selectRelativeCell(1),
   "Shift-Tab": selectRelativeCell(-1),
   ArrowRight: selectCellDelta(0, 1),
   ArrowLeft: selectCellDelta(0, -1),
-  ArrowDown: selectCellDelta(1, 0),
-  ArrowUp: selectCellDelta(-1, 0),
+  ArrowDown: anyOf(selectCellDelta(1, 0), exitTable(1)),
+  ArrowUp: anyOf(selectCellDelta(-1, 0), exitTable(-1)),
+  Home: selectCellDelta(0, -1e6),
+  End: selectCellDelta(0, 1e6),
   Backspace: clearSelectedCells,
   Delete: clearSelectedCells,
 }

@@ -98,6 +98,29 @@ describe("the black box (C17)", () => {
     view.destroy()
   })
 
+  it("an entry-mode buffer settles on ArrowDown and moves; an edit-mode buffer keeps its caret", () => {
+    const view = makeView()
+    let firstCell = -1
+    view.state.doc.descendants((n, p) => {
+      if (firstCell < 0 && n.type.name === "table_cell") firstCell = p
+      return true
+    })
+    // Seeded buffer = entry mode (type-to-replace): ArrowDown settles.
+    startEditing(firstCell, "4")(view.state, view.dispatch)
+    const input = view.dom.querySelector("[data-editing] input") as HTMLInputElement
+    input.value = "42"
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }))
+    expect(view.dom.querySelector("[data-editing]")).toBeNull()
+    const sel = view.state.selection
+    expect(view.state.doc.nodeAt(sel.from)!.textContent).toBe("c") // moved down a row
+    // Unseeded buffer = edit mode: the arrow stays the input's own.
+    startEditing(sel.from)(view.state, view.dispatch)
+    const editInput = view.dom.querySelector("[data-editing] input") as HTMLInputElement
+    editInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }))
+    expect(view.dom.querySelector("[data-editing] input")).toBe(editInput)
+    view.destroy()
+  })
+
   it("NodeSelection on a cell wears data-selected and the roving tabindex", () => {
     const view = makeView()
     let firstCell = -1
