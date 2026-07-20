@@ -11,9 +11,14 @@ export {
   stopEditing,
   settleCell,
   selectRelativeCell,
+  selectCellDelta,
+  setColumnWidths,
   clearSelectedCells,
 } from "./commands"
+export type { SettleAdvance } from "./commands"
 export { gridKeys, keyNameOf } from "./keys"
+export { spreadsVerbs } from "./verbs"
+export type { SpreadsVerb } from "./verbs"
 export { gridMap, GridMap } from "./gridmap"
 export type { Region, RowMeta, GridProblem } from "./gridmap"
 export { nameTable, nameCells, intersectionCell } from "./names"

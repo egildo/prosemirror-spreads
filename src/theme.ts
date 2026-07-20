@@ -26,6 +26,10 @@ export const baseTheme = `
 .ProseMirror td:focus, .ProseMirror th:focus {
   outline: none;
 }
+.ProseMirror table[data-purpose="col-resize"] td,
+.ProseMirror table[data-purpose="col-resize"] th {
+  cursor: col-resize;
+}
 .ProseMirror td[data-selected], .ProseMirror th[data-selected] {
   outline: 2px solid var(--spreads-selection, #2563eb);
   outline-offset: -2px;

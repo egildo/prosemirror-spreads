@@ -21,6 +21,18 @@ export type SpreadsRole =
 /// factory posture is the point — consumers have schemas we've never seen.
 export interface SpreadsNodesOptions {}
 
+// Width from `<col style="width:96px">` — our own emission — with the
+// legacy `width` attribute accepted on parse too (C14's ceiling posture:
+// the wild web still writes it). Non-pixel declarations (%, em) are not
+// representable and parse as null — the column stays fluid.
+function parseColWidth(dom: HTMLElement): number | null {
+  const style = dom.style?.width
+  if (style && /^[\d.]+px$/.test(style)) return parseFloat(style)
+  const legacy = dom.getAttribute("width")
+  if (legacy && /^[\d.]+$/.test(legacy)) return parseFloat(legacy)
+  return null
+}
+
 const cellSpec = (role: "cell" | "header"): NodeSpec => ({
   content: "text*",
   marks: "",
@@ -61,9 +73,23 @@ export function spreadsNodes(_options: SpreadsNodesOptions = {}): Record<string,
       toDOM: () => ["colgroup", 0],
     },
     table_col: {
+      attrs: {
+        // The column's declared width in CSS pixels — document data, the
+        // presentation register's seat in the document (the width undoes;
+        // ruling in architecture §7). Null: no declaration, fluid column.
+        width: { default: null },
+      },
       spreadsRole: "col",
-      parseDOM: [{ tag: "col" }],
-      toDOM: () => ["col"],
+      parseDOM: [
+        {
+          tag: "col",
+          getAttrs: (dom: HTMLElement) => ({ width: parseColWidth(dom) }),
+        },
+      ],
+      toDOM: (node: Node) => {
+        const width = node.attrs.width as number | null
+        return width != null ? ["col", { style: `width:${width}px` }] : ["col"]
+      },
     },
     table_head: {
       content: "table_row+",

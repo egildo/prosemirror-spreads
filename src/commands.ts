@@ -2,6 +2,7 @@ import type { Node } from "prosemirror-model"
 import { Fragment } from "prosemirror-model"
 import type { Command } from "prosemirror-state"
 import { NodeSelection } from "prosemirror-state"
+import { gridMap } from "./gridmap"
 import { isCellType, spreadsNodeTypes } from "./schema"
 import type { SpreadsMeta } from "./state"
 import { spreadsKey } from "./state"
@@ -23,6 +24,36 @@ function relativeCellPos(doc: Node, pos: number, dir: -1 | 1): number | null {
   const index = cells.indexOf(pos)
   if (index < 0) return null
   return cells[index + dir] ?? null
+}
+
+/// The table enclosing a cell position, with the table's own position.
+function tableAround(doc: Node, cellPos: number): { table: Node; tablePos: number } | null {
+  const $pos = doc.resolve(cellPos)
+  for (let d = $pos.depth; d > 0; d--) {
+    const node = $pos.node(d)
+    if (node.type.spec.spreadsRole === "table") return { table: node, tablePos: $pos.before(d) }
+  }
+  return null
+}
+
+const clampIndex = (value: number, max: number) => Math.max(0, Math.min(value, max))
+
+/// Grid-walk a step of (dRow, dCol) from the cell at `pos`, clamping at the
+/// table's edges — never wrapping (Tab wraps; arrows don't). A ragged target
+/// row clamps to its nearest existing cell. Null when the step goes nowhere.
+function deltaCellPos(doc: Node, pos: number, dRow: number, dCol: number): number | null {
+  const around = tableAround(doc, pos)
+  if (!around) return null
+  const map = gridMap(around.table)
+  const at = map.find(pos - around.tablePos - 1)
+  if (!at) return null
+  const row = clampIndex(at.row + dRow, map.height - 1)
+  let col = clampIndex(at.col + dCol, map.width - 1)
+  let off = map.cellAt(row, col)
+  while (off == null && col > 0) off = map.cellAt(row, --col)
+  if (off == null) return null
+  const target = around.tablePos + 1 + off
+  return target === pos ? null : target
 }
 
 /// Insert a fresh table at the selection: `rows` × `cols`, empty, and
@@ -104,6 +135,11 @@ export const stopEditing: Command = (state, dispatch) => {
   return true
 }
 
+/// Where a settle sends the selection: the spreadsheet's directions.
+/// `down`/`up` walk the grid column (Enter / Shift-Enter); `next`/`prev`
+/// walk document order, wrapping at row ends (Tab / Shift-Tab); null stays.
+export type SettleAdvance = "down" | "up" | "next" | "prev" | null
+
 /// Settle the cell at `pos`: commit the buffer's text, close the edit
 /// seam, and place the selection — all in one transaction, one undo step
 /// (C6: commit is the mode boundary, the evaluation trigger, and the undo
@@ -113,7 +149,7 @@ export const stopEditing: Command = (state, dispatch) => {
 /// enforcement pass in this same dispatch); plain text over a formula
 /// cell demotes it to a standing value. Header cells never carry
 /// formulas (settled): "=" text settles as literal content there.
-export function settleCell(pos: number, text: string, advance: -1 | 0 | 1 = 0): Command {
+export function settleCell(pos: number, text: string, advance: SettleAdvance = null): Command {
   return (state, dispatch) => {
     const cell = state.doc.nodeAt(pos)
     if (!cell || !isCellType(cell.type)) return false
@@ -129,7 +165,14 @@ export function settleCell(pos: number, text: string, advance: -1 | 0 | 1 = 0): 
           tr.replaceWith(pos + 1, pos + cell.nodeSize - 1, text ? state.schema.text(text) : Fragment.empty)
       }
       tr.setMeta(spreadsKey, { type: "stopEditing" } satisfies SpreadsMeta)
-      const target = advance ? relativeCellPos(tr.doc, pos, advance) : null
+      // The cell's own start position survives the in-cell edits above, so
+      // the walk runs on tr.doc from the same pos.
+      const target =
+        advance === "next" ? relativeCellPos(tr.doc, pos, 1)
+        : advance === "prev" ? relativeCellPos(tr.doc, pos, -1)
+        : advance === "down" ? deltaCellPos(tr.doc, pos, 1, 0)
+        : advance === "up" ? deltaCellPos(tr.doc, pos, -1, 0)
+        : null
       tr.setSelection(NodeSelection.create(tr.doc, target ?? pos))
       dispatch(tr.scrollIntoView())
     }
@@ -137,7 +180,22 @@ export function settleCell(pos: number, text: string, advance: -1 | 0 | 1 = 0): 
   }
 }
 
-/// In grid mode, walk the selection to the neighboring cell in document order.
+/// In grid mode, walk the selection a grid step of (dRow, dCol) — the four
+/// arrows' command. Clamps at table edges, never wraps; a ragged target row
+/// clamps to its nearest existing cell.
+export function selectCellDelta(dRow: number, dCol: number): Command {
+  return (state, dispatch) => {
+    const sel = state.selection
+    if (!(sel instanceof NodeSelection) || !isCellType(sel.node.type)) return false
+    const target = deltaCellPos(state.doc, sel.from, dRow, dCol)
+    if (target == null) return false
+    if (dispatch) dispatch(state.tr.setSelection(NodeSelection.create(state.doc, target)).scrollIntoView())
+    return true
+  }
+}
+
+/// In grid mode, walk the selection to the neighboring cell in document
+/// order — Tab's command: unlike the arrows it wraps at row ends.
 export function selectRelativeCell(dir: -1 | 1): Command {
   return (state, dispatch) => {
     const sel = state.selection
@@ -145,6 +203,46 @@ export function selectRelativeCell(dir: -1 | 1): Command {
     const target = relativeCellPos(state.doc, sel.from, dir)
     if (target == null) return false
     if (dispatch) dispatch(state.tr.setSelection(NodeSelection.create(state.doc, target)).scrollIntoView())
+    return true
+  }
+}
+
+/// Declare column widths on the table at `tablePos` — the resize gesture's
+/// settle (seam form: the box measured the geometry). Creates the colgroup
+/// when the table has none (the first resize carves it into the document),
+/// sizes it to the grid's width, and applies every defined entry —
+/// `undefined` keeps a column's standing width, `null` clears it. One
+/// transaction, one undo step: undoing the first resize lifts the whole
+/// colgroup back out.
+export function setColumnWidths(tablePos: number, widths: readonly (number | null | undefined)[]): Command {
+  return (state, dispatch) => {
+    const table = state.doc.nodeAt(tablePos)
+    if (!table || table.type.spec.spreadsRole !== "table") return false
+    const types = spreadsNodeTypes(state.schema)
+    if (!types.colgroup || !types.col) return false
+    let colgroup: Node | null = null
+    let colgroupOffset = -1
+    let insertAt = 0
+    table.forEach((child, childOffset) => {
+      const role = child.type.spec.spreadsRole
+      if (role === "colgroup" && !colgroup) {
+        colgroup = child
+        colgroupOffset = childOffset
+      }
+      if (role === "caption") insertAt = childOffset + child.nodeSize
+    })
+    const current: (number | null)[] = []
+    if (colgroup) (colgroup as Node).forEach((col) => current.push((col.attrs.width as number | null) ?? null))
+    while (current.length < gridMap(table).width) current.push(null)
+    const next = current.map((w, i) => (widths[i] === undefined ? w : widths[i]!))
+    if (dispatch) {
+      const group = types.colgroup.create(null, next.map((w) => types.col!.create({ width: w })))
+      const tr = state.tr
+      if (colgroup)
+        tr.replaceWith(tablePos + 1 + colgroupOffset, tablePos + 1 + colgroupOffset + (colgroup as Node).nodeSize, group)
+      else tr.insert(tablePos + 1 + insertAt, group)
+      dispatch(tr)
+    }
     return true
   }
 }

@@ -50,4 +50,26 @@ describe("spreadsNodes", () => {
     const out = serialize(parseHTML(html))
     expect(out).not.toMatch(/class=|style=|data-/)
   })
+
+  it("round-trips column widths on col — the one presentational fact in output", () => {
+    // jsdom normalizes the style attribute's spacing on serialization, so
+    // the pin is attribute-value equality across a full round trip, plus
+    // the emission wearing the width.
+    const html =
+      '<table><colgroup><col style="width:96px"><col></colgroup>' +
+      "<tbody><tr><td>a</td><td>b</td></tr></tbody></table>"
+    const once = serialize(parseHTML(html))
+    expect(once).toMatch(/<col style="width:\s*96px;?">/)
+    expect(serialize(parseHTML(once))).toBe(once)
+  })
+
+  it("accepts the legacy width attribute on parse, emits the style form", () => {
+    const doc = parseHTML('<table><colgroup><col width="120"></colgroup><tbody><tr><td>a</td></tr></tbody></table>')
+    expect(serialize(doc)).toMatch(/<col style="width:\s*120px;?">/)
+  })
+
+  it("a non-pixel width declaration parses as null — the column stays fluid", () => {
+    const doc = parseHTML('<table><colgroup><col style="width:50%"></colgroup><tbody><tr><td>a</td></tr></tbody></table>')
+    expect(serialize(doc)).toContain("<col></colgroup>")
+  })
 })

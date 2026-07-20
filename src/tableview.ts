@@ -2,7 +2,8 @@ import type { Node } from "prosemirror-model"
 import { NodeSelection } from "prosemirror-state"
 import type { Command } from "prosemirror-state"
 import type { EditorView, NodeView } from "prosemirror-view"
-import { editSelectedCell, settleCell, stopEditing } from "./commands"
+import { editSelectedCell, setColumnWidths, settleCell, stopEditing } from "./commands"
+import type { SettleAdvance } from "./commands"
 import { keyNameOf } from "./keys"
 import { spreadsKey } from "./state"
 
@@ -129,11 +130,12 @@ class CellComp {
     if (event.key === "Enter") {
       event.preventDefault()
       event.stopPropagation()
-      this.settle(0)
+      // The spreadsheet's directions: Enter lands the value and moves down.
+      this.settle(event.shiftKey ? "up" : "down")
     } else if (event.key === "Tab") {
       event.preventDefault()
       event.stopPropagation()
-      this.settle(event.shiftKey ? -1 : 1)
+      this.settle(event.shiftKey ? "prev" : "next")
     } else if (event.key === "Escape") {
       event.preventDefault()
       event.stopPropagation()
@@ -142,10 +144,10 @@ class CellComp {
   }
 
   private onBlur = () => {
-    if (!this.settling) this.settle(0, false)
+    if (!this.settling) this.settle(null, false)
   }
 
-  private settle(advance: -1 | 0 | 1, refocus = true) {
+  private settle(advance: SettleAdvance, refocus = true) {
     if (this.settling || !this.input || this.pos < 0) return
     this.settling = true
     settleCell(this.pos, this.input.value, advance)(this.view.state, this.view.dispatch)
@@ -166,11 +168,34 @@ class CellComp {
   }
 }
 
+/// A live column-resize drag: the gesture law's ephemeral half. Preview
+/// streams as inline styles ProseMirror never sees; one settle at pointerup.
+interface ResizeDrag {
+  pointerId: number
+  col: number
+  startX: number
+  startWidth: number
+  /// Live widths of every column, target updated as the pointer moves.
+  widths: number[]
+  /// The doc's declared widths at drag start ([] when no colgroup) — at
+  /// settle, columns with a standing declaration keep it untouched.
+  docWidths: (number | null)[]
+  /// The col elements carrying the preview.
+  cols: HTMLTableColElement[]
+  /// A stage-makeup colgroup conjured for the preview when the doc has
+  /// none; removed at drag end (the settle carves the real one).
+  makeupGroup: HTMLElement | null
+}
+
+const RESIZE_ZONE = 4
+const MIN_COL_WIDTH = 32
+
 /// The black box itself: one NodeView for the whole table.
 export class TableView implements NodeView {
   dom: HTMLTableElement
   private node: Node
   private sections: SectionEntry[] = []
+  private resize: ResizeDrag | null = null
 
   constructor(
     node: Node,
@@ -184,6 +209,9 @@ export class TableView implements NodeView {
     // serialized table (from the doc, never this DOM) carries no role.
     this.dom.setAttribute("role", "grid")
     this.dom.addEventListener("pointerdown", this.onPointerDown)
+    this.dom.addEventListener("pointermove", this.onPointerMove)
+    this.dom.addEventListener("pointerup", this.onPointerUp)
+    this.dom.addEventListener("pointercancel", this.onPointerCancel)
     this.dom.addEventListener("dblclick", this.onDblClick)
     this.dom.addEventListener("keydown", this.onKeydown)
     this.render()
@@ -223,8 +251,8 @@ export class TableView implements NodeView {
         if (entry.node !== sectionNode || entry.el.childNodes.length === 0) {
           if (role === "caption") entry.el.textContent = sectionNode.textContent
           else {
-            entry.el.textContent = ""
-            sectionNode.forEach(() => entry!.el.appendChild(document.createElement("col")))
+            entry.node = sectionNode
+            this.syncColgroupEl(entry)
           }
         }
       } else {
@@ -244,7 +272,41 @@ export class TableView implements NodeView {
     while (this.dom.children.length > next.length) this.dom.lastChild!.remove()
     this.sections = next
 
+    this.applyLayout()
     this.applyState()
+  }
+
+  /// A colgroup's element mirrors its node: one col per table_col, widths
+  /// as inline styles (the same styles the doc serializes — here they are
+  /// the working copy the resize preview writes over).
+  private syncColgroupEl(entry: SectionEntry) {
+    entry.el.textContent = ""
+    entry.node.forEach((colNode) => {
+      const col = document.createElement("col")
+      const width = colNode.attrs.width as number | null
+      if (width != null) col.style.width = width + "px"
+      entry.el.appendChild(col)
+    })
+  }
+
+  /// Fixed layout is the colgroup's consequence, worn as stage makeup on
+  /// the working table (inline style, never serialized): declared widths
+  /// mean nothing breathes while typing. No colgroup, no declared widths —
+  /// a fluid document table.
+  private applyLayout() {
+    if (this.resize) return // the drag owns the inline styles until it ends
+    const entry = this.sections.find((s) => s.node.type.spec.spreadsRole === "colgroup")
+    const widths: (number | null)[] = []
+    entry?.node.forEach((colNode) => widths.push((colNode.attrs.width as number | null) ?? null))
+    const defined = widths.filter((w): w is number => w != null)
+    if (!defined.length) {
+      this.dom.style.removeProperty("table-layout")
+      this.dom.style.removeProperty("width")
+      return
+    }
+    this.dom.style.tableLayout = "fixed"
+    if (defined.length === widths.length) this.dom.style.width = defined.reduce((a, b) => a + b, 0) + "px"
+    else this.dom.style.removeProperty("width")
   }
 
   private renderRows(section: SectionEntry, sectionNode: Node, rowsStart: number) {
@@ -326,13 +388,124 @@ export class TableView implements NodeView {
     return null
   }
 
+  // ── The resize gesture (C7, verbatim): continuous in the ephemeral
+  // layer — preview via inline styles the box owns — atomic at pointerup:
+  // one setColumnWidths transaction, one undo step.
+
+  /// The widest rendered row: the reference geometry for column edges.
+  private referenceCells(): HTMLTableCellElement[] {
+    let best: CellEntry[] = []
+    for (const section of this.sections)
+      for (const row of section.rows) if (row.cells.length > best.length) best = row.cells
+    return best.map((cell) => cell.comp.el)
+  }
+
+  /// Which column's right edge the pointer stands on, if any.
+  private colBoundaryAt(event: PointerEvent): number | null {
+    const cells = this.referenceCells()
+    for (let i = 0; i < cells.length; i++) {
+      if (Math.abs(event.clientX - cells[i]!.getBoundingClientRect().right) <= RESIZE_ZONE) return i
+    }
+    return null
+  }
+
+  private startResize(col: number, event: PointerEvent) {
+    const cells = this.referenceCells()
+    const widths = cells.map((el) => el.getBoundingClientRect().width)
+    const groupEntry = this.sections.find((s) => s.node.type.spec.spreadsRole === "colgroup")
+    const docWidths: (number | null)[] = []
+    groupEntry?.node.forEach((colNode) => docWidths.push((colNode.attrs.width as number | null) ?? null))
+    let makeupGroup: HTMLElement | null = null
+    let cols: HTMLTableColElement[]
+    if (groupEntry) {
+      while (groupEntry.el.children.length < widths.length) groupEntry.el.appendChild(document.createElement("col"))
+      cols = [...groupEntry.el.children] as HTMLTableColElement[]
+    } else {
+      makeupGroup = document.createElement("colgroup")
+      cols = widths.map(() => document.createElement("col"))
+      for (const colEl of cols) makeupGroup.appendChild(colEl)
+      const firstRowgroup =
+        [...this.dom.children].find((el) => el.tagName === "THEAD" || el.tagName === "TBODY" || el.tagName === "TFOOT") ??
+        null
+      this.dom.insertBefore(makeupGroup, firstRowgroup)
+    }
+    cols.forEach((colEl, i) => (colEl.style.width = widths[i] + "px"))
+    this.dom.style.tableLayout = "fixed"
+    this.dom.style.width = widths.reduce((a, b) => a + b, 0) + "px"
+    this.dom.setPointerCapture(event.pointerId)
+    this.resize = {
+      pointerId: event.pointerId,
+      col,
+      startX: event.clientX,
+      startWidth: widths[col]!,
+      widths,
+      docWidths,
+      cols,
+      makeupGroup,
+    }
+  }
+
+  private endResize(settle: boolean) {
+    const drag = this.resize
+    if (!drag) return
+    this.resize = null
+    if (this.dom.hasPointerCapture(drag.pointerId)) this.dom.releasePointerCapture(drag.pointerId)
+    drag.makeupGroup?.remove()
+    this.dom.removeAttribute("data-purpose")
+    const tablePos = this.getPos()
+    if (settle && tablePos != null) {
+      // Columns with a standing declaration keep it (undefined = untouched);
+      // undeclared ones get their measured width — the first resize carves
+      // the whole colgroup so nothing jumps when fixed layout lands.
+      const widths = drag.widths.map((w, i) =>
+        i === drag.col ? Math.round(w) : drag.docWidths[i] != null ? undefined : Math.round(w),
+      )
+      setColumnWidths(tablePos, widths)(this.view.state, this.view.dispatch)
+    }
+    // Re-derive presentation from the doc (dispatch re-rendered already;
+    // a cancelled drag restores the pre-drag truth).
+    const groupEntry = this.sections.find((s) => s.node.type.spec.spreadsRole === "colgroup")
+    if (groupEntry) this.syncColgroupEl(groupEntry)
+    this.applyLayout()
+  }
+
   private onPointerDown = (event: PointerEvent) => {
+    const boundary = this.colBoundaryAt(event)
+    if (boundary != null) {
+      event.preventDefault()
+      this.startResize(boundary, event)
+      return
+    }
     const comp = this.compAt(event.target)
     if (!comp || comp.input || comp.pos < 0) return
     event.preventDefault()
     const tr = this.view.state.tr.setSelection(NodeSelection.create(this.view.state.doc, comp.pos))
     this.view.dispatch(tr)
     comp.el.focus()
+  }
+
+  private onPointerMove = (event: PointerEvent) => {
+    const drag = this.resize
+    if (drag) {
+      if (event.pointerId !== drag.pointerId) return
+      const width = Math.max(MIN_COL_WIDTH, drag.startWidth + (event.clientX - drag.startX))
+      drag.widths[drag.col] = width
+      drag.cols[drag.col]!.style.width = width + "px"
+      this.dom.style.width = drag.widths.reduce((a, b) => a + b, 0) + "px"
+      return
+    }
+    // The purpose model in miniature: a pointer near a column edge wears
+    // col-resize; the attribute is the costume, the stylesheet the paint.
+    if (this.colBoundaryAt(event) != null) this.dom.setAttribute("data-purpose", "col-resize")
+    else this.dom.removeAttribute("data-purpose")
+  }
+
+  private onPointerUp = (event: PointerEvent) => {
+    if (this.resize && event.pointerId === this.resize.pointerId) this.endResize(true)
+  }
+
+  private onPointerCancel = (event: PointerEvent) => {
+    if (this.resize && event.pointerId === this.resize.pointerId) this.endResize(false)
   }
 
   private onDblClick = (event: MouseEvent) => {
@@ -343,6 +516,13 @@ export class TableView implements NodeView {
   }
 
   private onKeydown = (event: KeyboardEvent) => {
+    if (this.resize && event.key === "Escape") {
+      // The gesture law's abort: the drag dissolves, no transaction happened.
+      event.preventDefault()
+      event.stopPropagation()
+      this.endResize(false)
+      return
+    }
     const comp = this.compAt(event.target)
     if (comp?.input) return // the buffer's own listeners rule there
     const state = this.view.state
