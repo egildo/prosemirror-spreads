@@ -432,7 +432,13 @@ export class TableView implements NodeView {
     cols.forEach((colEl, i) => (colEl.style.width = widths[i] + "px"))
     this.dom.style.tableLayout = "fixed"
     this.dom.style.width = widths.reduce((a, b) => a + b, 0) + "px"
-    this.dom.setPointerCapture(event.pointerId)
+    // Capture is best-effort: synthetic pointers (probes) and capture-less
+    // environments (jsdom) have no active pointer to capture.
+    try {
+      this.dom.setPointerCapture(event.pointerId)
+    } catch {
+      /* the drag still works for events that reach the table */
+    }
     this.resize = {
       pointerId: event.pointerId,
       col,
@@ -449,7 +455,7 @@ export class TableView implements NodeView {
     const drag = this.resize
     if (!drag) return
     this.resize = null
-    if (this.dom.hasPointerCapture(drag.pointerId)) this.dom.releasePointerCapture(drag.pointerId)
+    if (this.dom.hasPointerCapture?.(drag.pointerId)) this.dom.releasePointerCapture(drag.pointerId)
     drag.makeupGroup?.remove()
     this.dom.removeAttribute("data-purpose")
     const tablePos = this.getPos()
