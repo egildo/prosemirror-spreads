@@ -400,11 +400,14 @@ export class TableView implements NodeView {
     return best.map((cell) => cell.comp.el)
   }
 
-  /// Which column's right edge the pointer stands on, if any.
+  /// Which column's right edge the pointer stands on, if any. A table
+  /// without real geometry (zero-width cells: hidden, not yet laid out)
+  /// has no edges to grab — everything stays a plain click.
   private colBoundaryAt(event: PointerEvent): number | null {
     const cells = this.referenceCells()
     for (let i = 0; i < cells.length; i++) {
-      if (Math.abs(event.clientX - cells[i]!.getBoundingClientRect().right) <= RESIZE_ZONE) return i
+      const rect = cells[i]!.getBoundingClientRect()
+      if (rect.width > 0 && Math.abs(event.clientX - rect.right) <= RESIZE_ZONE) return i
     }
     return null
   }
