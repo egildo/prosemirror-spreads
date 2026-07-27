@@ -27,7 +27,9 @@ function relativeCellPos(doc: Node, pos: number, dir: -1 | 1): number | null {
 }
 
 /// The table enclosing a cell position, with the table's own position.
-function tableAround(doc: Node, cellPos: number): { table: Node; tablePos: number } | null {
+/// Module-internal machinery (the structure family resolves through it);
+/// not part of the package surface — positions live below deck (C5).
+export function tableAround(doc: Node, cellPos: number): { table: Node; tablePos: number } | null {
   const $pos = doc.resolve(cellPos)
   for (let d = $pos.depth; d > 0; d--) {
     const node = $pos.node(d)
@@ -184,6 +186,21 @@ export function settleCell(pos: number, text: string, advance: SettleAdvance = n
       dispatch(tr.scrollIntoView())
     }
     return true
+  }
+}
+
+/// Write the selected cell through the settle seam — the public,
+/// selection-driven form (menus and palettes dry-run it; the formula verb
+/// rides it). Inherits the seam's law: "=" as the first character declares
+/// a formula (data cells only), plain text demotes. Refuses while an edit
+/// buffer is open — the buffer owns its own commit paths, and a write
+/// underneath it would fight the uncommitted text.
+export function writeSelectedCell(text: string): Command {
+  return (state, dispatch) => {
+    const sel = state.selection
+    if (!(sel instanceof NodeSelection) || !isCellType(sel.node.type)) return false
+    if (spreadsKey.getState(state)?.editing) return false
+    return settleCell(sel.from, text)(state, dispatch)
   }
 }
 
