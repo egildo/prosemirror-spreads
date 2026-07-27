@@ -186,6 +186,13 @@ describe("spreadsVerbs", () => {
     const onHeader = onCell.apply(onCell.tr.setSelection(NodeSelection.create(onCell.doc, headerPos)))
     expect(formula.enabled!(onHeader)).toBe(false)
     expect(formula.read!(onHeader)).toBeNull()
+    // The seam refuses the same thing, so the gate is honesty rather than
+    // safety: even driven past the greyed field, nothing lands.
+    const factory = formula.command as (args: Record<string, unknown>) => Command
+    expect(factory({ formula: "=1+1" })(onHeader, undefined)).toBe(false)
+    expect(onHeader.doc.nodeAt(headerPos)!.textContent).toBe(
+      onCell.doc.nodeAt(headerPos)!.textContent,
+    )
     // The abbr verb is the header's twin, and mirrors the gate.
     const abbr = spreadsVerbs(schema).find((verb) => verb.id === "table:abbr")!
     expect(abbr.enabled!(onHeader)).toBe(true)

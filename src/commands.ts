@@ -151,15 +151,31 @@ export type SettleAdvance = "down" | "up" | "right" | "left" | "next" | "prev" |
 /// "=" as the first character makes the cell a formula (the attribute is
 /// the automation, content becomes the computed value — filled by the
 /// enforcement pass in this same dispatch); plain text over a formula
-/// cell demotes it to a standing value. Header cells never carry
-/// formulas (settled): "=" text settles as literal content there.
+/// cell demotes it to a standing value.
+///
+/// Header cells never carry formulas, and the seam **refuses** rather
+/// than degrading (Egildo's ruling, 2026-07-27, replacing the earlier
+/// "=" settles as literal content there"): "=" as a header's first
+/// character dry-runs false and writes nothing. The degradation it
+/// replaces was never local — `th` has no formula attribute, so the text
+/// landed as the header's own words, silently *renaming the column the
+/// resolver reads*, and every formula referencing it broke a tick later
+/// with no visible cause. Refusing here closes the hole for the edit
+/// buffer too, not only for the verb: a refused settle leaves the buffer
+/// open with the text still in it (validation with teeth, C6), and the
+/// box lets a pointer back into an open buffer, so the edit is there to
+/// fix or abandon. The honest cost, carved with the ruling: a header
+/// whose intended text genuinely begins with "=" cannot be written
+/// through the seam; no escape convention (the spreadsheets' leading
+/// apostrophe) is invented here.
 export function settleCell(pos: number, text: string, advance: SettleAdvance = null): Command {
   return (state, dispatch) => {
     const cell = state.doc.nodeAt(pos)
     if (!cell || !isCellType(cell.type)) return false
+    const isDataCell = cell.type.spec.spreadsRole === "cell"
+    if (!isDataCell && text.startsWith("=")) return false
     if (dispatch) {
       const tr = state.tr
-      const isDataCell = cell.type.spec.spreadsRole === "cell"
       const asFormula = isDataCell && text.startsWith("=")
       if (asFormula) {
         if (text !== cell.attrs.formula) tr.setNodeMarkup(pos, null, { ...cell.attrs, formula: text })

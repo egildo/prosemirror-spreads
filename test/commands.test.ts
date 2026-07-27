@@ -136,6 +136,36 @@ describe("settleCell", () => {
     expect(undone.doc.nodeAt(cells[0]!)!.textContent).toBe("")
   })
 
+  it("refuses a formula on a header — the degradation would rename the column", () => {
+    // Egildo's ruling (2026-07-27): a th has no formula attribute, so "="
+    // text used to land as the header's own words, silently renaming the
+    // column the resolver reads. The seam now refuses instead.
+    const { state, cells } = withAnatomy()
+    const headerPos = cells[0]! // th "A"
+    expect(settleCell(headerPos, "=SUM(B)")(state)).toBe(false)
+    let dispatched = false
+    settleCell(headerPos, "=SUM(B)")(state, () => (dispatched = true))
+    expect(dispatched).toBe(false)
+    expect(state.doc.nodeAt(headerPos)!.textContent).toBe("A") // untouched
+    // Ordinary text still settles into a header — this is a rename, not a lock.
+    const renamed = apply(state, settleCell(headerPos, "Alpha"))
+    expect(renamed.doc.nodeAt(headerPos)!.textContent).toBe("Alpha")
+    // And a data cell keeps the formula law it always had.
+    const dataPos = cells[3]!
+    const formula = apply(state, settleCell(dataPos, "=1+1"))
+    expect(formula.doc.nodeAt(dataPos)!.attrs.formula).toBe("=1+1")
+  })
+
+  it("a refused settle leaves the edit open — the text is there to fix", () => {
+    const { state, cells } = withAnatomy()
+    const headerPos = cells[0]!
+    const editing = apply(state, startEditing(headerPos))
+    expect(spreadsKey.getState(editing)!.editing).not.toBeNull()
+    expect(settleCell(headerPos, "=SUM(B)")(editing)).toBe(false)
+    // No stopEditing rode a transaction that never happened.
+    expect(spreadsKey.getState(editing)!.editing).not.toBeNull()
+  })
+
   it("advance moves the selection to the neighboring cell", () => {
     const { state, cells } = withTable()
     const settled = apply(state, settleCell(cells[0]!, "a", "next"))

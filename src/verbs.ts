@@ -284,12 +284,12 @@ export function spreadsVerbs(schema: Schema): SpreadsVerb[] {
           ? ((sel.node.attrs.formula as string | null) ?? null)
           : null
       },
-      // Gated to data cells, matching the readback exactly. `th` has no
-      // formula attribute, so a formula settled into a header degrades
-      // silently to its own text — the verb must not offer what the
-      // schema cannot hold. (Whether the *seam* should refuse a leading
-      // `=` on a header, closing the same hole for the edit buffer, is
-      // open — venue finding, 2026-07-27.)
+      // Gated to data cells, matching the readback exactly: `th` has no
+      // formula attribute, so the verb must not offer what the schema
+      // cannot hold. The seam refuses the same thing (Egildo's ruling,
+      // 2026-07-27), which makes this gate redundant as a safety and
+      // load-bearing as *honesty* — the field greys out instead of
+      // accepting a value it would then reject.
       enabled: (state: EditorState) => {
         const sel = state.selection
         return sel instanceof NodeSelection && sel.node.type.spec.spreadsRole === "cell" && writeSelectedCell("")(state)
