@@ -43,6 +43,8 @@ The fat top ruler carries one special affordance: **make this the header row**. 
 
 Headers edit like any cell — click selects the column, Enter dives into the text. A header's context menu offers **Short name**: a compact label (stored as the standard `abbr` attribute) that formulas use when the full header is long. Screen readers announce the same short name at every cell — what a formula calls your column and what a blind reader hears are the same word, from the same attribute.
 
+The table itself takes a name too: its **caption**. Write one from anywhere in the table — the caption is the table's own, not a cell's — and it lands as a real `<caption>`, the first thing a screen reader announces before it starts reading your grid. Clear the field and the element goes away entirely; an empty caption announces nothing, so we don't leave one behind.
+
 Rename a header at any time. Every formula referencing it rewrites itself in the same undo step — rename in a table works the way rename works in an IDE, not the way it breaks in a spreadsheet.
 
 ## Formulas

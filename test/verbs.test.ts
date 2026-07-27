@@ -132,10 +132,73 @@ describe("spreadsVerbs", () => {
     for (const id of ["table:row-header-column", "table:split-body", "table:join-bodies"]) {
       expect((verbs.find((verb) => verb.id === id)!.command as Command)(blank, undefined)).toBe(false)
     }
-    for (const id of ["table:abbr", "table:column-width"]) {
+    for (const id of ["table:abbr", "table:column-width", "table:caption"]) {
       const verb = verbs.find((entry) => entry.id === id)!
       expect(verb.enabled!(blank)).toBe(false)
       expect(verb.read!(blank)).toBeNull()
+    }
+  })
+
+  it("the three value-verbs declare a control's whole specification", () => {
+    // One argument, no domain, a typed name and a readback that answers a
+    // value: that is a field, and a host reads it off the declaration alone.
+    const verbs = spreadsVerbs(schema)
+    for (const [id, type] of [
+      ["table:formula", "text"],
+      ["table:abbr", "text"],
+      ["table:column-width", "number"],
+      ["table:caption", "text"],
+    ] as const) {
+      const verb = verbs.find((entry) => entry.id === id)!
+      expect(verb.args).toHaveLength(1)
+      expect(verb.args![0]!.domain).toBeUndefined()
+      expect(verb.args![0]!.type).toBe(type)
+      expect(typeof verb.read).toBe("function")
+      expect(typeof verb.enabled).toBe("function")
+    }
+  })
+
+  it("table:caption reads the table's name from any cell, and blank removes it", () => {
+    const caption = spreadsVerbs(schema).find((verb) => verb.id === "table:caption")!
+    const onCell = withInserted()
+    expect(caption.enabled!(onCell)).toBe(true)
+    expect(caption.read!(onCell)).toBeNull()
+    const factory = caption.command as (args: Record<string, unknown>) => Command
+    const named = apply(onCell, factory({ caption: "Listino" }))
+    expect(caption.read!(named)).toBe("Listino")
+    expect(caption.enabled!(named)).toBe(true) // a standing caption is still writable
+    const cleared = apply(named, factory({ caption: "" }))
+    expect(caption.read!(cleared)).toBeNull()
+  })
+
+  it("table:formula is offered only where the schema can hold one", () => {
+    // A header has no formula attribute: a formula settled there would
+    // degrade to its own text, silently renaming the column. The gate
+    // matches the readback — data cells, nothing else.
+    const formula = spreadsVerbs(schema).find((verb) => verb.id === "table:formula")!
+    const onCell = withInserted()
+    expect(formula.enabled!(onCell)).toBe(true)
+    let headerPos = -1
+    onCell.doc.descendants((node, pos) => {
+      if (headerPos < 0 && node.type.name === "table_header") headerPos = pos
+      return true
+    })
+    const onHeader = onCell.apply(onCell.tr.setSelection(NodeSelection.create(onCell.doc, headerPos)))
+    expect(formula.enabled!(onHeader)).toBe(false)
+    expect(formula.read!(onHeader)).toBeNull()
+    // The abbr verb is the header's twin, and mirrors the gate.
+    const abbr = spreadsVerbs(schema).find((verb) => verb.id === "table:abbr")!
+    expect(abbr.enabled!(onHeader)).toBe(true)
+    expect(abbr.enabled!(onCell)).toBe(false)
+  })
+
+  it("the partition pair wears faces now — a verb with no glyph reaches no strip", () => {
+    const verbs = spreadsVerbs(schema)
+    expect(verbs.find((verb) => verb.id === "table:split-body")!.short).toBeTruthy()
+    expect(verbs.find((verb) => verb.id === "table:join-bodies")!.short).toBeTruthy()
+    // These three stay deliberately faceless: they are keyboard rungs.
+    for (const id of ["table:edit", "table:clear", "table:select"]) {
+      expect(verbs.find((verb) => verb.id === id)!.short).toBeUndefined()
     }
   })
 

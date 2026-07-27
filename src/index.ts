@@ -24,6 +24,7 @@ export {
 export type { SettleAdvance } from "./commands"
 export { addRowBefore, addRowAfter, addColumnBefore, addColumnAfter, deleteRow, deleteColumn } from "./structure"
 export { setRowRegion, toggleRowHeaderColumn, splitBody, joinBodies } from "./regions"
+export { writeSelectedCaption, selectedCaption, selectedTable, canWriteCaption } from "./caption"
 export { gridKeys, keyNameOf } from "./keys"
 export { spreadsVerbs } from "./verbs"
 export type { SpreadsVerb, SpreadsVerbArg, SpreadsDomainMember } from "./verbs"

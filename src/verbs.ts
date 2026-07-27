@@ -11,6 +11,7 @@ import {
   writeSelectedCell,
   writeSelectedColumnWidth,
 } from "./commands"
+import { canWriteCaption, selectedCaption, writeSelectedCaption } from "./caption"
 import type { Region } from "./gridmap"
 import {
   joinBodies,
@@ -44,7 +45,11 @@ export interface SpreadsDomainMember {
 
 /// An argument a collecting host must gather before running an arg-verb.
 /// The `type` vocabulary belongs to whoever collects; a `domain` makes the
-/// verb expandable into per-member forms (the registry's `expand`).
+/// verb expandable into per-member forms (the registry's `expand`). Between
+/// them, `type` and `domain` are also what lets a host choose a *control*
+/// rather than a modal ask — a domain is a select, a lone typed argument
+/// with a readback is a field. Nothing here knows that; it is the shape
+/// being honest, and a surface reading it.
 export interface SpreadsVerbArg {
   name: string
   label: string
@@ -191,8 +196,11 @@ export function spreadsVerbs(schema: Schema): SpreadsVerb[] {
       group: "table",
     },
     {
+      // The partition pair wears the structural family's ⊕/⊖ idiom over the
+      // double rule a tbody boundary draws — provisional glyphs, like all of them.
       id: "table:split-body",
       label: "Split body",
+      short: "⊕═",
       command: splitBody,
       keywords: ["body", "tbody", "split", "group", "partition"],
       group: "table",
@@ -200,8 +208,23 @@ export function spreadsVerbs(schema: Schema): SpreadsVerb[] {
     {
       id: "table:join-bodies",
       label: "Join bodies",
+      short: "⊖═",
       command: joinBodies,
       keywords: ["body", "tbody", "join", "merge", "group"],
+      group: "table",
+    },
+    {
+      // The table's own accessible name — the one node in the anatomy no
+      // verb could reach. Table-scoped, so it answers from any cell (and
+      // from the whole-table selection the Escape rung climbs to); blank
+      // removes the node.
+      id: "table:caption",
+      label: "Caption",
+      args: [{ name: "caption", label: "Caption", type: "text" }],
+      command: (args: Record<string, unknown>) => writeSelectedCaption(String(args.caption ?? "")),
+      read: (state: EditorState) => selectedCaption(state),
+      enabled: canWriteCaption,
+      keywords: ["caption", "title", "name", "table", "summary"],
       group: "table",
     },
     {
@@ -210,7 +233,7 @@ export function spreadsVerbs(schema: Schema): SpreadsVerb[] {
       // collector prefills from it, blank demotes.
       id: "table:abbr",
       label: "Reference name",
-      args: [{ name: "abbr", label: "Reference name (abbr)" }],
+      args: [{ name: "abbr", label: "Reference name", type: "text" }],
       command: (args: Record<string, unknown>) => writeSelectedAbbr(String(args.abbr ?? "")),
       read: (state: EditorState) => {
         const sel = state.selection
@@ -227,7 +250,7 @@ export function spreadsVerbs(schema: Schema): SpreadsVerb[] {
       // the column you stand on, blank demotes the column to fluid.
       id: "table:column-width",
       label: "Column width",
-      args: [{ name: "width", label: "Column width (px)" }],
+      args: [{ name: "width", label: "px", type: "number" }],
       command: (args: Record<string, unknown>) => {
         const raw = String(args.width ?? "").trim()
         if (raw === "") return writeSelectedColumnWidth(null)
@@ -249,7 +272,7 @@ export function spreadsVerbs(schema: Schema): SpreadsVerb[] {
       id: "table:formula",
       label: "Formula",
       short: "ƒ",
-      args: [{ name: "formula", label: "Formula" }],
+      args: [{ name: "formula", label: "Formula", type: "text" }],
       command: (args: Record<string, unknown>) => writeSelectedCell(String(args.formula ?? "")),
       // The formula-bar seed: the readback is the formula you stand on
       // (the link verb's href rhyme) — null on standing values and on
@@ -261,7 +284,16 @@ export function spreadsVerbs(schema: Schema): SpreadsVerb[] {
           ? ((sel.node.attrs.formula as string | null) ?? null)
           : null
       },
-      enabled: (state: EditorState) => writeSelectedCell("")(state),
+      // Gated to data cells, matching the readback exactly. `th` has no
+      // formula attribute, so a formula settled into a header degrades
+      // silently to its own text — the verb must not offer what the
+      // schema cannot hold. (Whether the *seam* should refuse a leading
+      // `=` on a header, closing the same hole for the edit buffer, is
+      // open — venue finding, 2026-07-27.)
+      enabled: (state: EditorState) => {
+        const sel = state.selection
+        return sel instanceof NodeSelection && sel.node.type.spec.spreadsRole === "cell" && writeSelectedCell("")(state)
+      },
       keywords: ["formula", "function", "compute", "cell"],
       group: "table",
     },
