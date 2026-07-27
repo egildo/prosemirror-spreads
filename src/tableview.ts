@@ -44,6 +44,30 @@ const SECTION_TAGS: Record<string, string> = {
   foot: "tfoot",
 }
 
+// One shared canvas context measures buffer text; jsdom (no canvas)
+// gets null and the buffer simply keeps its CSS min-width.
+let sharedMeasureContext: CanvasRenderingContext2D | null | undefined
+function measureContext(): CanvasRenderingContext2D | null {
+  if (sharedMeasureContext === undefined)
+    sharedMeasureContext = document.createElement("canvas").getContext?.("2d") ?? null
+  return sharedMeasureContext
+}
+
+/// Focus a cell and claim the caret seat with it. Element focus alone is
+/// half the keyboard: the surrounding contenteditable keeps its own DOM
+/// caret, and *trusted* text input follows the caret, not the focused
+/// element — so a caret left standing in the document's prose would keep
+/// receiving the user's typing while the cell only looks focused (venue
+/// finding, 2026-07-27: the table lives in a document, again). Collapsing
+/// the selection into the cell is loop-safe: ProseMirror coerces a caret
+/// inside an atom cell back to the cell's own node selection, which is
+/// already the state.
+function focusClaimingCaret(el: HTMLElement) {
+  el.focus()
+  const selection = el.ownerDocument.getSelection()
+  if (selection) selection.collapse(el, 0)
+}
+
 /// A cell's renderer component — the battleground-1 buffer doctrine,
 /// carried whole: grid text rendered by us, edit mode hosts a native
 /// input, the buffer is UI state that becomes real only through settle.
@@ -85,7 +109,31 @@ class CellComp {
       if (abbr) this.el.setAttribute("abbr", abbr)
       else this.el.removeAttribute("abbr")
     }
-    if (!this.input) this.el.textContent = node.textContent
+    if (node.type.spec.spreadsRole === "cell") {
+      // The working grid mirrors the emission's data-formula: the theme
+      // marks the automation, and the hint costs the document nothing.
+      const formula = node.attrs.formula as string | null
+      if (formula) this.el.setAttribute("data-formula", formula)
+      else this.el.removeAttribute("data-formula")
+    }
+    if (this.input) this.setStandingText(node.textContent)
+    else this.el.textContent = node.textContent
+  }
+
+  /// While the buffer hovers, the standing text stays in the cell (it is
+  /// the layout — the hovering editor must not change the cell's box).
+  /// Remote changes update it without touching the input.
+  private setStandingText(text: string) {
+    let textNode: globalThis.Text | null = null
+    for (let i = 0; i < this.el.childNodes.length; i++) {
+      const child = this.el.childNodes[i]!
+      if (child.nodeType === 3) {
+        textNode = child as globalThis.Text
+        break
+      }
+    }
+    if (textNode) textNode.data = text
+    else if (text) this.el.insertBefore(document.createTextNode(text), this.el.firstChild)
   }
 
   /// Reflect mode and selection: open/close the buffer, wear the
@@ -96,7 +144,7 @@ class CellComp {
     if (selected) {
       this.el.setAttribute("data-selected", "true")
       this.el.tabIndex = 0
-      if (tableHasFocus && !this.input && document.activeElement !== this.el) this.el.focus()
+      if (tableHasFocus && !this.input && document.activeElement !== this.el) focusClaimingCaret(this.el)
     } else {
       this.el.removeAttribute("data-selected")
       this.el.tabIndex = -1
@@ -110,12 +158,30 @@ class CellComp {
     input.value = seed ?? (this.node.attrs.formula as string | null) ?? this.node.textContent
     input.addEventListener("keydown", this.onKeydown)
     input.addEventListener("blur", this.onBlur)
+    input.addEventListener("input", this.fitBuffer)
     this.el.setAttribute("data-editing", "true")
-    this.el.textContent = ""
+    // The standing text stays: it is the cell's layout, and the buffer
+    // hovers above it (the theme floats the input) — a formula longer
+    // than its result must not make the fluid table breathe.
     this.el.appendChild(input)
+    this.fitBuffer()
     // C17's promise pressed: outside contenteditable, focus needs no dance.
     input.focus()
     input.setSelectionRange(input.value.length, input.value.length)
+  }
+
+  /// Size the hovering buffer to its text, growing rightward over the
+  /// neighbors like a real spreadsheet's editor — ephemeral geometry,
+  /// gesture-law style: no transactions, nothing the document sees.
+  private fitBuffer = () => {
+    const input = this.input
+    if (!input) return
+    const ctx = measureContext()
+    if (!ctx) return
+    const style = getComputedStyle(input)
+    ctx.font = style.font || `${style.fontSize} ${style.fontFamily}`
+    const text = Math.ceil(ctx.measureText(input.value).width)
+    input.style.width = Math.max(this.el.clientWidth, text + 20) + "px"
   }
 
   private closeBuffer() {
@@ -180,7 +246,7 @@ class CellComp {
     this.settling = true
     stopEditing(this.view.state, this.view.dispatch)
     this.settling = false
-    this.el.focus()
+    focusClaimingCaret(this.el)
   }
 
   destroy() {
@@ -234,6 +300,7 @@ export class TableView implements NodeView {
     this.dom.addEventListener("pointercancel", this.onPointerCancel)
     this.dom.addEventListener("dblclick", this.onDblClick)
     this.dom.addEventListener("keydown", this.onKeydown)
+    this.dom.addEventListener("beforeinput", this.onBeforeInput)
     this.render()
   }
 
@@ -510,7 +577,7 @@ export class TableView implements NodeView {
     event.preventDefault()
     const tr = this.view.state.tr.setSelection(NodeSelection.create(this.view.state.doc, comp.pos))
     this.view.dispatch(tr)
-    comp.el.focus()
+    focusClaimingCaret(comp.el)
   }
 
   private onPointerMove = (event: PointerEvent) => {
@@ -593,6 +660,31 @@ export class TableView implements NodeView {
     // passes key events through, so an unconsumed chord reaches the host's
     // keymaps (undo, and the rest).
     if (this.bindings && event.key.startsWith("Arrow")) consume()
+  }
+
+  /// Keydown-less input — IME's commit, autofill, synthetic typing — never
+  /// fires a keydown to intercept: it arrives as beforeinput on the focused
+  /// cell. stopEvent keeps non-key events as the box's business, so no
+  /// editor-level interception can see these (venue finding, 2026-07-27:
+  /// with a cell focused, keydown-less typing simply vanished). The box
+  /// claims its own: the same law as type-to-replace — printable input
+  /// seeds the buffer, delete clears — before the browser mutates our DOM.
+  private onBeforeInput = (event: InputEvent) => {
+    const comp = this.compAt(event.target)
+    if (comp?.input) return // the buffer's native input owns its input events
+    const state = this.view.state
+    if (spreadsKey.getState(state)?.editing) return
+    const sel = state.selection
+    if (!(sel instanceof NodeSelection) || !isCellType(sel.node.type)) return
+    if (event.inputType === "insertText" && event.data) {
+      event.preventDefault()
+      event.stopPropagation()
+      editSelectedCell(event.data)(state, this.view.dispatch)
+    } else if (event.inputType === "deleteContentBackward" || event.inputType === "deleteContentForward") {
+      event.preventDefault()
+      event.stopPropagation()
+      clearSelectedCells(state, this.view.dispatch)
+    }
   }
 
   /// ProseMirror routes selections that fall inside the black box here.

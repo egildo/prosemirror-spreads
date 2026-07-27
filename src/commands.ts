@@ -204,6 +204,86 @@ export function writeSelectedCell(text: string): Command {
   }
 }
 
+/// Demote the selected formula cell to its standing value — the computed
+/// text stays, the automation drops (§4's "demote formula cell to
+/// standing value", now a command). Dry-runs false anywhere but a
+/// formula cell, so a surface can grey it honestly.
+export const demoteSelectedFormula: Command = (state, dispatch) => {
+  const sel = state.selection
+  if (!(sel instanceof NodeSelection) || sel.node.type.spec.spreadsRole !== "cell") return false
+  if (sel.node.attrs.formula == null) return false
+  return writeSelectedCell(sel.node.textContent)(state, dispatch)
+}
+
+/// Write the selected header's reference name — the abbr, which the name
+/// table prefers over the visible text (names.ts: the spec's escape hatch,
+/// and the only way to reference a header whose text isn't an identifier).
+/// Selection-driven, th-only; blank demotes to null, the name dying with
+/// it. Formulas are never rewritten (C4): references to the old name read
+/// #NAME?, references to the new one light up — the rename tells the truth.
+export function writeSelectedAbbr(text: string | null): Command {
+  return (state, dispatch) => {
+    const sel = state.selection
+    if (!(sel instanceof NodeSelection) || sel.node.type.spec.spreadsRole !== "header") return false
+    if (spreadsKey.getState(state)?.editing) return false
+    if (dispatch) {
+      const abbr = text?.trim() || null
+      const tr = state.tr.setNodeMarkup(sel.from, null, { ...sel.node.attrs, abbr })
+      tr.setSelection(NodeSelection.create(tr.doc, sel.from))
+      dispatch(tr)
+    }
+    return true
+  }
+}
+
+/// Declare the selected cell's column width — the presentation register's
+/// selection-driven form (the resize gesture holds the seam,
+/// [`setColumnWidths`](#setColumnWidths)). Null demotes the column to
+/// fluid; clearing what was never declared refuses rather than carving an
+/// all-null colgroup (§7: the first *declaration* carves). And the mirror
+/// of the carve: clearing the last standing declaration lifts the whole
+/// colgroup back out — an all-null colgroup would keep fixed layout
+/// standing with nothing declared, stage makeup without a declaration.
+export function writeSelectedColumnWidth(width: number | null): Command {
+  return (state, dispatch) => {
+    const sel = state.selection
+    if (!(sel instanceof NodeSelection) || !isCellType(sel.node.type)) return false
+    if (spreadsKey.getState(state)?.editing) return false
+    const around = tableAround(state.doc, sel.from)
+    if (!around) return false
+    const at = gridMap(around.table).find(sel.from - around.tablePos - 1)
+    if (!at) return false
+    if (width == null) {
+      let colgroup: Node | null = null
+      let colgroupOffset = -1
+      let offset = 0
+      for (let i = 0; i < around.table.childCount; i++) {
+        const child = around.table.child(i)
+        if (child.type.spec.spreadsRole === "colgroup" && !colgroup) {
+          colgroup = child
+          colgroupOffset = offset
+        }
+        offset += child.nodeSize
+      }
+      if (!colgroup) return false
+      let standing = 0
+      colgroup.forEach((col, _off, index) => {
+        if (index !== at.col && col.attrs.width != null) standing++
+      })
+      if (standing === 0) {
+        if (dispatch) {
+          const from = around.tablePos + 1 + colgroupOffset
+          dispatch(state.tr.delete(from, from + colgroup.nodeSize))
+        }
+        return true
+      }
+    }
+    const widths: (number | null | undefined)[] = []
+    widths[at.col] = width
+    return setColumnWidths(around.tablePos, widths)(state, dispatch)
+  }
+}
+
 /// In grid mode, walk the selection a grid step of (dRow, dCol) — the four
 /// arrows' command. Clamps at table edges, never wraps; a ragged target row
 /// clamps to its nearest existing cell.

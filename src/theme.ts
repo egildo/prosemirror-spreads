@@ -17,6 +17,8 @@ export const baseTheme = `
   vertical-align: middle;
   cursor: cell;
   box-sizing: border-box;
+  /* The seat for overlays: the hovering buffer and the formula mark. */
+  position: relative;
 }
 .ProseMirror th {
   background: var(--spreads-header-bg, #f2f4f7);
@@ -30,28 +32,45 @@ export const baseTheme = `
 .ProseMirror table[data-purpose="col-resize"] th {
   cursor: col-resize;
 }
+/* A formula cell wears a quiet corner mark — the automation made visible. */
+.ProseMirror td[data-formula]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  border: 3px solid var(--spreads-formula-mark, #2563eb);
+  border-left-color: transparent;
+  border-bottom-color: transparent;
+}
 .ProseMirror td[data-selected], .ProseMirror th[data-selected] {
   outline: 2px solid var(--spreads-selection, #2563eb);
   outline-offset: -2px;
   background: var(--spreads-selection-fill, rgb(37 99 235 / 8%));
 }
 .ProseMirror td[data-editing], .ProseMirror th[data-editing] {
-  padding: 0;
   outline: 2px solid var(--spreads-editing-glow, #2563eb);
   outline-offset: -2px;
 }
+/* The hovering buffer: the cell's own box never changes — the standing
+   text keeps the layout, and the editor floats above it, growing over the
+   neighbors like a real spreadsheet's editor. The box sizes it to its
+   text (ephemeral geometry, no transactions). */
 .ProseMirror td[data-editing] input, .ProseMirror th[data-editing] input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  min-width: 100%;
+  z-index: 2;
   font: inherit;
   color: inherit;
   background: var(--spreads-editing-bg, #fff);
   border: 0;
-  outline: 0;
+  outline: 2px solid var(--spreads-editing-glow, #2563eb);
+  outline-offset: -2px;
   margin: 0;
   padding: 0.2em 0.55em;
-  width: 100%;
-  height: 100%;
-  min-width: 4em;
-  display: block;
   box-sizing: border-box;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
 }
 `

@@ -35,7 +35,7 @@ import { spreadsKey } from "./state"
 
 type Side = "before" | "after"
 
-interface CellContext {
+export interface CellContext {
   table: Node
   tablePos: number
   map: GridMap
@@ -50,7 +50,7 @@ interface CellContext {
 /// settling is one blur away). A whole-table selection also resolves
 /// null: it carries no row or column target, and guessing one is the
 /// magic the dry-run contract exists to avoid.
-function selectedCellContext(state: EditorState): CellContext | null {
+export function selectedCellContext(state: EditorState): CellContext | null {
   if (spreadsKey.getState(state)?.editing) return null
   const sel = state.selection
   if (!(sel instanceof NodeSelection) || !isCellType(sel.node.type)) return null
@@ -62,7 +62,7 @@ function selectedCellContext(state: EditorState): CellContext | null {
   return { table: around.table, tablePos: around.tablePos, map, row: at.row, col: at.col }
 }
 
-interface RowSeat {
+export interface RowSeat {
   section: Node
   sectionOffset: number
   region: Region
@@ -73,7 +73,7 @@ interface RowSeat {
 /// Locate grid row `index` in the table's anatomy. Offsets are relative to
 /// content starts: the row's document position is
 /// `tablePos + 1 + sectionOffset + 1 + rowOffset`.
-function rowSeat(table: Node, index: number): RowSeat | null {
+export function rowSeat(table: Node, index: number): RowSeat | null {
   let seen = 0
   let sectionOffset = 0
   for (let s = 0; s < table.childCount; s++) {
@@ -95,7 +95,7 @@ function rowSeat(table: Node, index: number): RowSeat | null {
   return null
 }
 
-function bodyCount(table: Node): number {
+export function bodyCount(table: Node): number {
   let count = 0
   for (let i = 0; i < table.childCount; i++) if (table.child(i).type.spec.spreadsRole === "body") count++
   return count
@@ -103,7 +103,7 @@ function bodyCount(table: Node): number {
 
 /// The first colgroup and its offset within the table's content — the one
 /// kept true, matching setColumnWidths.
-function firstColgroup(table: Node): { node: Node; offset: number } | null {
+export function firstColgroup(table: Node): { node: Node; offset: number } | null {
   let offset = 0
   for (let i = 0; i < table.childCount; i++) {
     const child = table.child(i)
@@ -115,7 +115,7 @@ function firstColgroup(table: Node): { node: Node; offset: number } | null {
 
 /// Offset of child `index` within a node's content (`index === childCount`
 /// gives the content's end).
-function childOffset(node: Node, index: number): number {
+export function childOffset(node: Node, index: number): number {
   let offset = 0
   for (let i = 0; i < index; i++) offset += node.child(i).nodeSize
   return offset

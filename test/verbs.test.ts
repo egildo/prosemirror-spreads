@@ -111,6 +111,50 @@ describe("spreadsVerbs", () => {
     expect(formula.read!(demoted)).toBeNull()
   })
 
+  it("table:row-region declares the {head, body, foot} domain and reads the member you stand on", () => {
+    const region = spreadsVerbs(schema).find((verb) => verb.id === "table:row-region")!
+    expect(region.args![0]!.domain!.map((member) => member.value)).toEqual(["head", "body", "foot"])
+    const blank = EditorState.create({ schema, plugins: [...spreads()] })
+    expect(region.read!(blank)).toBeNull()
+    expect(region.enabled!(blank)).toBe(false)
+    const onCell = withInserted()
+    expect(region.read!(onCell)).toBe("body")
+    expect(region.enabled!(onCell)).toBe(true)
+    const factory = region.command as (args: Record<string, unknown>) => Command
+    expect(factory({ region: "body" })(onCell, undefined)).toBe(false) // already the member
+    const promoted = apply(onCell, factory({ region: "foot" }))
+    expect(region.read!(promoted)).toBe("foot") // the readback follows the moved row
+  })
+
+  it("the new entries dry-run honestly without a cell selection", () => {
+    const verbs = spreadsVerbs(schema)
+    const blank = EditorState.create({ schema, plugins: [...spreads()] })
+    for (const id of ["table:row-header-column", "table:split-body", "table:join-bodies"]) {
+      expect((verbs.find((verb) => verb.id === id)!.command as Command)(blank, undefined)).toBe(false)
+    }
+    for (const id of ["table:abbr", "table:column-width"]) {
+      const verb = verbs.find((entry) => entry.id === id)!
+      expect(verb.enabled!(blank)).toBe(false)
+      expect(verb.read!(blank)).toBeNull()
+    }
+  })
+
+  it("table:demote-formula freezes the computed value and drops the automation", () => {
+    const verbs = spreadsVerbs(schema)
+    const formula = verbs.find((verb) => verb.id === "table:formula")!
+    const demote = verbs.find((verb) => verb.id === "table:demote-formula")!
+    const command = demote.command as Command
+    const onCell = withInserted()
+    expect(command(onCell, undefined)).toBe(false) // a standing value has nothing to demote
+    const factory = formula.command as (args: Record<string, unknown>) => Command
+    const declared = apply(onCell, factory({ formula: "=2*4" }))
+    expect(command(declared, undefined)).toBe(true)
+    const demoted = apply(declared, command)
+    const cell = demoted.doc.nodeAt(demoted.selection.from)!
+    expect(cell.attrs.formula).toBeNull()
+    expect(cell.textContent).toBe("8")
+  })
+
   it("table:select climbs the Escape rung, and its readback names the state", () => {
     const selectVerb = spreadsVerbs(schema).find((verb) => verb.id === "table:select")!
     const onCell = withInserted()

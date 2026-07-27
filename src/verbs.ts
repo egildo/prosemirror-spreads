@@ -3,21 +3,53 @@ import type { Command, EditorState } from "prosemirror-state"
 import { NodeSelection } from "prosemirror-state"
 import {
   clearSelectedCells,
+  demoteSelectedFormula,
   editSelectedCell,
   insertTable,
   selectEnclosingTable,
+  writeSelectedAbbr,
   writeSelectedCell,
+  writeSelectedColumnWidth,
 } from "./commands"
+import type { Region } from "./gridmap"
+import {
+  joinBodies,
+  selectedColumnIsRowHeaders,
+  selectedRowRegion,
+  setRowRegion,
+  splitBody,
+  toggleRowHeaderColumn,
+} from "./regions"
 import { spreadsNodeTypes } from "./schema"
 import { spreadsKey } from "./state"
-import { addColumnAfter, addColumnBefore, addRowAfter, addRowBefore, deleteColumn, deleteRow } from "./structure"
+import {
+  addColumnAfter,
+  addColumnBefore,
+  addRowAfter,
+  addRowBefore,
+  deleteColumn,
+  deleteRow,
+  firstColgroup,
+  selectedCellContext,
+} from "./structure"
+
+/// One member of an enumerable domain — the registry's DomainMember shape,
+/// declared locally like everything else here.
+export interface SpreadsDomainMember {
+  value: string
+  label: string
+  short?: string
+  keys?: string[]
+}
 
 /// An argument a collecting host must gather before running an arg-verb.
-/// The `type` vocabulary belongs to whoever collects.
+/// The `type` vocabulary belongs to whoever collects; a `domain` makes the
+/// verb expandable into per-member forms (the registry's `expand`).
 export interface SpreadsVerbArg {
   name: string
   label: string
   type?: string
+  domain?: SpreadsDomainMember[]
 }
 
 /// A verb entry in prosemirror-verbs' structural contract — declared here
@@ -127,8 +159,96 @@ export function spreadsVerbs(schema: Schema): SpreadsVerb[] {
       group: "table",
     },
     {
+      // One verb over the {head, body, foot} domain — the blocktype rhyme
+      // at the row scale. Hosts expand() it into three radio-lit forms; the
+      // base form stays palette material (no short).
+      id: "table:row-region",
+      label: "Row region",
+      args: [
+        {
+          name: "region",
+          label: "Region",
+          domain: [
+            { value: "head", label: "Header rows", short: "⊤" },
+            { value: "body", label: "Data rows", short: "≣" },
+            { value: "foot", label: "Footer rows", short: "⊥" },
+          ],
+        },
+      ],
+      command: (args: Record<string, unknown>) => setRowRegion(args.region as Region),
+      read: (state: EditorState) => selectedRowRegion(state),
+      enabled: (state: EditorState) => !!selectedCellContext(state),
+      keywords: ["row", "region", "thead", "tbody", "tfoot", "promote", "demote"],
+      group: "table",
+    },
+    {
+      id: "table:row-header-column",
+      label: "Row headers",
+      short: "◧",
+      command: toggleRowHeaderColumn,
+      read: selectedColumnIsRowHeaders,
+      keywords: ["column", "header", "row", "scope"],
+      group: "table",
+    },
+    {
+      id: "table:split-body",
+      label: "Split body",
+      command: splitBody,
+      keywords: ["body", "tbody", "split", "group", "partition"],
+      group: "table",
+    },
+    {
+      id: "table:join-bodies",
+      label: "Join bodies",
+      command: joinBodies,
+      keywords: ["body", "tbody", "join", "merge", "group"],
+      group: "table",
+    },
+    {
+      // The naming register's twin: the readback is the reference name you
+      // stand on (the resolver prefers abbr over the visible text), the
+      // collector prefills from it, blank demotes.
+      id: "table:abbr",
+      label: "Reference name",
+      args: [{ name: "abbr", label: "Reference name (abbr)" }],
+      command: (args: Record<string, unknown>) => writeSelectedAbbr(String(args.abbr ?? "")),
+      read: (state: EditorState) => {
+        const sel = state.selection
+        return sel instanceof NodeSelection && sel.node.type.spec.spreadsRole === "header"
+          ? ((sel.node.attrs.abbr as string | null) ?? null)
+          : null
+      },
+      enabled: (state: EditorState) => writeSelectedAbbr(null)(state),
+      keywords: ["abbr", "abbreviation", "name", "reference", "header"],
+      group: "table",
+    },
+    {
+      // The presentation register's twin: readback the standing width of
+      // the column you stand on, blank demotes the column to fluid.
+      id: "table:column-width",
+      label: "Column width",
+      args: [{ name: "width", label: "Column width (px)" }],
+      command: (args: Record<string, unknown>) => {
+        const raw = String(args.width ?? "").trim()
+        if (raw === "") return writeSelectedColumnWidth(null)
+        const width = Number(raw)
+        return Number.isFinite(width) && width > 0 ? writeSelectedColumnWidth(width) : () => false
+      },
+      read: (state: EditorState) => {
+        const ctx = selectedCellContext(state)
+        if (!ctx) return null
+        const colgroup = firstColgroup(ctx.table)
+        const col = colgroup && ctx.col < colgroup.node.childCount ? colgroup.node.child(ctx.col) : null
+        return (col?.attrs.width as number | null) ?? null
+      },
+      enabled: (state: EditorState) => writeSelectedColumnWidth(1)(state),
+      keywords: ["column", "width", "resize", "pixels"],
+      group: "table",
+    },
+    {
       id: "table:formula",
       label: "Formula",
+      short: "ƒ",
       args: [{ name: "formula", label: "Formula" }],
       command: (args: Record<string, unknown>) => writeSelectedCell(String(args.formula ?? "")),
       // The formula-bar seed: the readback is the formula you stand on
@@ -143,6 +263,14 @@ export function spreadsVerbs(schema: Schema): SpreadsVerb[] {
       },
       enabled: (state: EditorState) => writeSelectedCell("")(state),
       keywords: ["formula", "function", "compute", "cell"],
+      group: "table",
+    },
+    {
+      id: "table:demote-formula",
+      label: "To value",
+      short: "ƒ−",
+      command: demoteSelectedFormula,
+      keywords: ["formula", "value", "demote", "freeze"],
       group: "table",
     },
     {

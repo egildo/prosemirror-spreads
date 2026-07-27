@@ -121,6 +121,76 @@ describe("the black box (C17)", () => {
     view.destroy()
   })
 
+  it("the buffer hovers: the standing text keeps the cell's layout while editing", () => {
+    const view = makeView()
+    let firstCell = -1
+    view.state.doc.descendants((n, p) => {
+      if (firstCell < 0 && n.type.name === "table_cell") firstCell = p
+      return true
+    })
+    startEditing(firstCell)(view.state, view.dispatch)
+    const td = view.dom.querySelector("[data-editing]")!
+    // The cell's content is still its standing text — the input floats
+    // above it, so a formula longer than its result never reflows the row.
+    expect(td.textContent).toBe("a")
+    expect(td.querySelector("input")).toBeTruthy()
+    view.destroy()
+  })
+
+  it("a formula cell wears data-formula on the working grid — the hint's hook", () => {
+    const view = makeView()
+    let firstCell = -1
+    view.state.doc.descendants((n, p) => {
+      if (firstCell < 0 && n.type.name === "table_cell") firstCell = p
+      return true
+    })
+    const cell = view.state.doc.nodeAt(firstCell)!
+    view.dispatch(view.state.tr.setNodeMarkup(firstCell, null, { ...cell.attrs, formula: "=1+2" }))
+    expect(view.dom.querySelector("td")!.getAttribute("data-formula")).toBe("=1+2")
+    view.dispatch(
+      view.state.tr.setNodeMarkup(firstCell, null, { ...view.state.doc.nodeAt(firstCell)!.attrs, formula: null }),
+    )
+    expect(view.dom.querySelector("td")!.hasAttribute("data-formula")).toBe(false)
+    view.destroy()
+  })
+
+  it("keydown-less input seeds the buffer — the box's own beforeinput seam", () => {
+    // IME commits, autofill, and synthetic typing arrive as beforeinput
+    // with no keydown; stopEvent keeps non-key events inside the box, so
+    // the box must claim them itself (venue finding, 2026-07-27).
+    const view = makeView()
+    let firstCell = -1
+    view.state.doc.descendants((n, p) => {
+      if (firstCell < 0 && n.type.name === "table_cell") firstCell = p
+      return true
+    })
+    view.dispatch(view.state.tr.setSelection(NodeSelection.create(view.state.doc, firstCell)))
+    const td = view.dom.querySelector("td")!
+    const event = new InputEvent("beforeinput", { inputType: "insertText", data: "7", bubbles: true, cancelable: true })
+    td.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(true)
+    const input = view.dom.querySelector("[data-editing] input") as HTMLInputElement
+    expect(input).toBeTruthy()
+    expect(input.value).toBe("7")
+    view.destroy()
+  })
+
+  it("a pointerdown claims the caret seat with the focus — no stale caret keeps trusted input", () => {
+    const view = makeView()
+    document.body.appendChild(view.dom.parentElement ?? view.dom)
+    // Park a caret outside the table, as a surrounding document would.
+    const outside = document.createElement("p")
+    outside.textContent = "prose"
+    document.body.appendChild(outside)
+    document.getSelection()!.collapse(outside.firstChild!, 2)
+    const td = view.dom.querySelector("td")!
+    td.dispatchEvent(new Event("pointerdown", { bubbles: true, cancelable: true }))
+    const selection = document.getSelection()!
+    expect(selection.anchorNode).toBe(td)
+    outside.remove()
+    view.destroy()
+  })
+
   it("NodeSelection on a cell wears data-selected and the roving tabindex", () => {
     const view = makeView()
     let firstCell = -1

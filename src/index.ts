@@ -17,12 +17,16 @@ export {
   setColumnWidths,
   clearSelectedCells,
   writeSelectedCell,
+  writeSelectedAbbr,
+  writeSelectedColumnWidth,
+  demoteSelectedFormula,
 } from "./commands"
 export type { SettleAdvance } from "./commands"
 export { addRowBefore, addRowAfter, addColumnBefore, addColumnAfter, deleteRow, deleteColumn } from "./structure"
+export { setRowRegion, toggleRowHeaderColumn, splitBody, joinBodies } from "./regions"
 export { gridKeys, keyNameOf } from "./keys"
 export { spreadsVerbs } from "./verbs"
-export type { SpreadsVerb, SpreadsVerbArg } from "./verbs"
+export type { SpreadsVerb, SpreadsVerbArg, SpreadsDomainMember } from "./verbs"
 export { gridMap, GridMap } from "./gridmap"
 export type { Region, RowMeta, GridProblem } from "./gridmap"
 export { nameTable, nameCells, intersectionCell } from "./names"
