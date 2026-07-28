@@ -13,7 +13,18 @@ export type Expr =
   | { type: "bin"; op: "+" | "-" | "*" | "/"; left: Expr; right: Expr }
   | { type: "neg"; expr: Expr }
 
-export const FUNCTIONS = ["SUM", "AVG", "MIN", "MAX", "COUNT"] as const
+/// The function set, grown by rounds and never by drift (§9's ruling).
+/// Two kinds, and the distinction is load-bearing rather than cosmetic: an
+/// **aggregate** flattens whatever it is given into one list of values, so
+/// a reference naming forty cells contributes forty; a **scalar** takes
+/// its arguments one apiece, so a multi-cell reference in one is an
+/// honest #VALUE!. v1 shipped five functions and all five were aggregates,
+/// which is why the language could not round a number until now.
+export const AGGREGATE_FUNCTIONS = ["SUM", "AVG", "MIN", "MAX", "COUNT", "COUNTA", "MEDIAN", "PRODUCT"] as const
+export const SCALAR_FUNCTIONS = ["ROUND", "TRUNC", "ABS", "SQRT", "POWER", "MOD"] as const
+export const FUNCTIONS = [...AGGREGATE_FUNCTIONS, ...SCALAR_FUNCTIONS] as const
+export type AggregateName = (typeof AGGREGATE_FUNCTIONS)[number]
+export type ScalarName = (typeof SCALAR_FUNCTIONS)[number]
 export type FunctionName = (typeof FUNCTIONS)[number]
 
 export class FormulaParseError extends Error {}

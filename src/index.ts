@@ -32,8 +32,15 @@ export { gridMap, GridMap } from "./gridmap"
 export type { Region, RowMeta, GridProblem } from "./gridmap"
 export { nameTable, nameCells, intersectionCell } from "./names"
 export type { NameEntry, NameTable } from "./names"
-export { parseFormula, isFormulaText, FormulaParseError, FUNCTIONS } from "./formula"
-export type { Expr, FunctionName } from "./formula"
+export {
+  parseFormula,
+  isFormulaText,
+  FormulaParseError,
+  FUNCTIONS,
+  AGGREGATE_FUNCTIONS,
+  SCALAR_FUNCTIONS,
+} from "./formula"
+export type { Expr, FunctionName, AggregateName, ScalarName } from "./formula"
 export { evaluateTable, standingValue, displayText, isError, ERRORS } from "./evaluate"
 export type { CellValue, EvalError, Scalar } from "./evaluate"
 export { enforceDeclarations } from "./enforce"

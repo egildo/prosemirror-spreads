@@ -25,6 +25,70 @@ export const baseTheme = `
   font-weight: 600;
   text-align: left;
 }
+/* ── The anatomy, made readable ──────────────────────────────────────────
+   The regions are already in the document — thead, tbody+, tfoot, and the
+   scope="row" column — and until now they all looked alike. These rules
+   read the document's own structure (never a class), so a table gains them
+   by *being* well-formed: nothing here is applied by the editor, and a
+   serialized table dropped into any page with this sheet reads the same. */
+
+/* The caption is the table's name: it sits above the grid and says so. */
+.ProseMirror caption {
+  caption-side: top;
+  text-align: left;
+  padding: 0 0 0.4em;
+  font-weight: 600;
+  color: var(--spreads-caption-color, inherit);
+}
+/* A firm rule closes the header band — the strongest line in the table,
+   because it is the one boundary a reader must never lose. */
+.ProseMirror thead > tr:last-child > th,
+.ProseMirror thead > tr:last-child > td {
+  border-bottom: var(--spreads-band-rule, 2px solid #9aa4b2);
+}
+/* The footer wears the accounting convention: a double rule above the
+   totals, which is what centuries of printed ledgers settled on. */
+.ProseMirror tfoot > tr:first-child > th,
+.ProseMirror tfoot > tr:first-child > td {
+  border-top: var(--spreads-total-rule, 3px double #9aa4b2);
+}
+.ProseMirror tfoot {
+  background: var(--spreads-foot-bg, #f8f9fb);
+  font-weight: 600;
+}
+/* The partition, at last visible: every tbody after the first opens with
+   its own rule. Until this line, splitting a body changed the document's
+   grouping and nothing on the screen — the verb was real and invisible. */
+.ProseMirror tbody + tbody > tr:first-child > td,
+.ProseMirror tbody + tbody > tr:first-child > th {
+  border-top: var(--spreads-group-rule, 2px solid #9aa4b2);
+}
+/* The row-header column is the thead's vertical twin, and it gets the
+   twin's treatment: the band rule, turned on its side. */
+.ProseMirror tbody th[scope="row"],
+.ProseMirror tfoot th[scope="row"] {
+  border-right: var(--spreads-band-rule, 2px solid #9aa4b2);
+  background: var(--spreads-row-header-bg, #f8f9fb);
+}
+/* Column groups. CSS grants column boxes only four properties — border,
+   background, width, visibility — and the border counts only under
+   border-collapse, where it also loses every tie to the cell's own. So a
+   group boundary must out-weigh the 1px grid line to appear at all, which
+   is why this rule is deliberately wider rather than merely darker. This
+   is the honest ceiling: a colgroup cannot tint its cells' text, align
+   them, or carry any other readability affordance, whatever we wish.
+   Today only pasted or hand-authored tables carry more than one colgroup
+   (ours are created for widths and there is exactly one), so this rule is
+   the anatomy being served faithfully rather than a feature in daily use. */
+.ProseMirror colgroup + colgroup {
+  border-left: var(--spreads-group-rule, 2px solid #9aa4b2);
+}
+/* Off by default: a stripe is a taste, not a structure. One variable
+   turns it on for a whole document, and it rides td alone so it never
+   fights a header's or a footer's own band. */
+.ProseMirror tbody > tr:nth-child(even) > td {
+  background: var(--spreads-row-stripe, transparent);
+}
 .ProseMirror td:focus, .ProseMirror th:focus {
   outline: none;
 }

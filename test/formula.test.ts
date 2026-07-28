@@ -204,19 +204,103 @@ describe("evaluateTable", () => {
     expect(Object.values(computed(trap))).toEqual(["#VALUE!"])
   })
 
-  it("COUNT counts non-empty cells; AVG of nothing is an error", () => {
-    const table = parseHTML(
-      '<table><thead><tr><th scope="col">A</th></tr></thead>' +
-        "<tbody><tr><td>1</td></tr><tr><td></td></tr><tr><td>x</td></tr></tbody>" +
-        '<tfoot><tr><td data-formula="=COUNT(A)"></td></tr></tfoot></table>',
-    ).firstChild!
-    expect(Object.values(computed(table))).toEqual(["2"])
-    const empty = parseHTML(
-      '<table><thead><tr><th scope="col">A</th></tr></thead>' +
-        "<tbody><tr><td></td></tr></tbody>" +
-        '<tfoot><tr><td data-formula="=AVG(A)"></td></tr></tfoot></table>',
-    ).firstChild!
-    expect(Object.values(computed(empty))).toEqual(["#DIV/0!"])
+  // One column [1, empty, "x"], one formula in the tfoot — the shape every
+  // aggregate test below shares.
+  function overMixedColumn(formula: string): string[] {
+    return Object.values(
+      computed(
+        parseHTML(
+          '<table><thead><tr><th scope="col">A</th></tr></thead>' +
+            "<tbody><tr><td>1</td></tr><tr><td></td></tr><tr><td>x</td></tr></tbody>" +
+            `<tfoot><tr><td data-formula="${formula}"></td></tr></tfoot></table>`,
+        ).firstChild!,
+      ),
+    )
+  }
+
+  it("COUNT counts numbers, COUNTA counts non-empty — §9's open question, closed", () => {
+    // The single v1 COUNT counted non-empty: it was COUNTA wearing COUNT's
+    // name, which is why the meaning stood open. Naming both members
+    // settles it the way every spreadsheet already has.
+    expect(overMixedColumn("=COUNT(A)")).toEqual(["1"])
+    expect(overMixedColumn("=COUNTA(A)")).toEqual(["2"])
+    // Counting is the one aggregate for which text is data rather than a
+    // category error; every other one still refuses the column outright.
+    expect(overMixedColumn("=SUM(A)")).toEqual(["#VALUE!"])
+  })
+
+  it("an aggregate with an identity returns it when empty; one without says so", () => {
+    const overEmpty = (formula: string) =>
+      Object.values(
+        computed(
+          parseHTML(
+            '<table><thead><tr><th scope="col">A</th></tr></thead>' +
+              "<tbody><tr><td></td></tr></tbody>" +
+              `<tfoot><tr><td data-formula="${formula}"></td></tr></tfoot></table>`,
+          ).firstChild!,
+        ),
+      )
+    expect(overEmpty("=SUM(A)")).toEqual(["0"]) // the empty sum
+    expect(overEmpty("=PRODUCT(A)")).toEqual(["1"]) // the empty product
+    expect(overEmpty("=AVG(A)")).toEqual(["#DIV/0!"]) // no identity, no fiction
+    expect(overEmpty("=MEDIAN(A)")).toEqual(["#DIV/0!"])
+  })
+
+  it("the new aggregates compute over a named column", () => {
+    const over = (formula: string) =>
+      Object.values(
+        computed(
+          parseHTML(
+            '<table><thead><tr><th scope="col">A</th></tr></thead>' +
+              "<tbody><tr><td>3</td></tr><tr><td>1</td></tr><tr><td>4</td></tr><tr><td>1</td></tr></tbody>" +
+              `<tfoot><tr><td data-formula="${formula}"></td></tr></tfoot></table>`,
+          ).firstChild!,
+        ),
+      )
+    expect(over("=MEDIAN(A)")).toEqual(["2"]) // even count: the mean of the middle pair
+    expect(over("=PRODUCT(A)")).toEqual(["12"])
+    expect(over("=COUNT(A)")).toEqual(["4"])
+    expect(over("=MEDIAN(5, 1, 3)")).toEqual(["3"]) // odd count, bare arguments
+  })
+
+  it("scalars take one value per argument — and a whole column is honestly #VALUE!", () => {
+    const scalar = (formula: string) =>
+      Object.values(
+        computed(
+          parseHTML(
+            '<table><thead><tr><th scope="col">A</th></tr></thead>' +
+              "<tbody><tr><td>2</td></tr><tr><td>7</td></tr></tbody>" +
+              `<tfoot><tr><td data-formula="${formula}"></td></tr></tfoot></table>`,
+          ).firstChild!,
+        ),
+      )
+    expect(scalar("=ROUND(SUM(A)/3, 2)")).toEqual(["3"])
+    expect(scalar("=ROUND(2.345, 2)")).toEqual(["2.35"])
+    expect(scalar("=ROUND(2.5)")).toEqual(["3"])
+    expect(scalar("=ROUND(-2.5)")).toEqual(["-3"]) // half away from zero, not Math.round
+    expect(scalar("=TRUNC(2.99)")).toEqual(["2"])
+    expect(scalar("=ABS(0-7)")).toEqual(["7"])
+    expect(scalar("=SQRT(9)")).toEqual(["3"])
+    expect(scalar("=POWER(2, 10)")).toEqual(["1024"])
+    expect(scalar("=MOD(-1, 3)")).toEqual(["2"]) // the divisor's sign, not JavaScript's
+    // A reference naming two cells is not one value.
+    expect(scalar("=ROUND(A, 2)")).toEqual(["#VALUE!"])
+  })
+
+  it("refuses what leaves the reals, and what has the wrong shape", () => {
+    const alone = (formula: string) =>
+      Object.values(
+        computed(parseHTML(`<table><tbody><tr><td data-formula="${formula}"></td></tr></tbody></table>`).firstChild!),
+      )
+    expect(alone("=SQRT(0-1)")).toEqual(["#VALUE!"]) // no complex numbers here
+    expect(alone("=POWER(0, 0-1)")).toEqual(["#VALUE!"]) // infinite, and infinity is not a number a cell may hold
+    expect(alone("=MOD(5, 0)")).toEqual(["#DIV/0!"])
+    // Arity is checked before anything evaluates: a call of the wrong
+    // shape is not a call, and a silently ignored tail is how a language drifts.
+    expect(alone("=ROUND(1, 2, 3)")).toEqual(["#VALUE!"])
+    expect(alone("=ABS()")).toEqual(["#VALUE!"])
+    expect(alone("=POWER(2)")).toEqual(["#VALUE!"])
+    expect(alone("=NOPE(1)")).toEqual(["#NAME?"])
   })
 })
 

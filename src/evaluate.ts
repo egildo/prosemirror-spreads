@@ -1,6 +1,6 @@
 import type { Node } from "prosemirror-model"
 import type { Expr } from "./formula"
-import { FormulaParseError, parseFormula } from "./formula"
+import { AGGREGATE_FUNCTIONS, FormulaParseError, SCALAR_FUNCTIONS, parseFormula } from "./formula"
 import { intersectionCell, nameCells, nameTable } from "./names"
 
 /// The evaluator: declarations become true here. Formula cells evaluate
@@ -12,8 +12,13 @@ import { intersectionCell, nameCells, nameTable } from "./names"
 ///
 /// v1 provisional (awaiting their rounds): a standing cell's raw value is
 /// its text parsed as a canonical number (the typed-value layer replaces
-/// exactly this seam later); COUNT counts non-empty cells; text inside an
-/// aggregate is the trap we refuse — a type error, never a silent skip.
+/// exactly this seam later); text inside a numeric aggregate is the trap
+/// we refuse — a type error, never a silent skip.
+///
+/// Functions are declared in a table (kind, arity) rather than switched on
+/// by name, so the set grows by adding a row and a case. Two kinds:
+/// aggregates flatten references into their value list, scalars take one
+/// value per argument.
 
 export interface EvalError {
   error: true
@@ -35,6 +40,55 @@ export function isError(v: unknown): v is EvalError {
 }
 
 const NUMBER = /^-?[0-9]+(\.[0-9]+)?$/
+
+/// What a function is, declared rather than switched on. `kind` decides how
+/// arguments arrive: an aggregate flattens every reference into the value
+/// list, a scalar takes each argument as one value (so a multi-cell
+/// reference inside one is #VALUE!, honestly). Arity is checked before
+/// anything evaluates, so `ROUND(x, 2, 3)` fails as a shape error rather
+/// than quietly ignoring its tail — the drift every spreadsheet language
+/// regrets. Growing the set is now one row here plus one case below.
+interface FnSpec {
+  kind: "aggregate" | "scalar"
+  min: number
+  max: number
+}
+
+const FN_TABLE: Record<string, FnSpec> = {
+  // The v1 five, unchanged in shape.
+  SUM: { kind: "aggregate", min: 1, max: Infinity },
+  AVG: { kind: "aggregate", min: 1, max: Infinity },
+  MIN: { kind: "aggregate", min: 1, max: Infinity },
+  MAX: { kind: "aggregate", min: 1, max: Infinity },
+  COUNT: { kind: "aggregate", min: 1, max: Infinity },
+  // Grown 2026-07-28.
+  COUNTA: { kind: "aggregate", min: 1, max: Infinity },
+  MEDIAN: { kind: "aggregate", min: 1, max: Infinity },
+  PRODUCT: { kind: "aggregate", min: 1, max: Infinity },
+  ROUND: { kind: "scalar", min: 1, max: 2 },
+  TRUNC: { kind: "scalar", min: 1, max: 2 },
+  ABS: { kind: "scalar", min: 1, max: 1 },
+  SQRT: { kind: "scalar", min: 1, max: 1 },
+  POWER: { kind: "scalar", min: 2, max: 2 },
+  MOD: { kind: "scalar", min: 2, max: 2 },
+}
+
+// Every declared name has a table row, and vice versa — asserted here so a
+// function can never be half-added (declared but unimplemented, or the
+// reverse, which is how a set drifts).
+for (const name of AGGREGATE_FUNCTIONS) if (FN_TABLE[name]?.kind !== "aggregate") throw new Error(`spreads: ${name} missing`)
+for (const name of SCALAR_FUNCTIONS) if (FN_TABLE[name]?.kind !== "scalar") throw new Error(`spreads: ${name} missing`)
+
+// Arithmetic can leave the reals — POWER(0, -1), SQRT(-1), an overflow.
+// Nothing infinite or NaN is allowed to reach a cell and pose as a number.
+const finite = (n: number): Scalar => (Number.isFinite(n) ? n : ERRORS.value)
+
+// Spreadsheet rounding is half-away-from-zero, not Math.round's
+// half-toward-positive-infinity: ROUND(-0.5) is -1 here, as everyone expects.
+function roundTo(x: number, digits: number): number {
+  const factor = 10 ** digits
+  return (Math.sign(x) * Math.round(Math.abs(x) * factor)) / factor
+}
 
 /// The raw value of a standing cell — the one seam the typed-value layer
 /// (values & formats round) will replace.
@@ -150,6 +204,52 @@ export function evaluateTable(table: Node): Map<number, CellValue> {
   }
 
   function evalCall(expr: Extract<Expr, { type: "call" }>): CellValue {
+    const spec = FN_TABLE[expr.fn]
+    if (!spec) return ERRORS.name
+    // Arity first, before a single argument is evaluated: a call of the
+    // wrong shape is not a call, and answering it would be worse than
+    // refusing it.
+    if (expr.args.length < spec.min || expr.args.length > spec.max) return ERRORS.value
+    return spec.kind === "scalar" ? evalScalarCall(expr) : evalAggregateCall(expr)
+  }
+
+  // A scalar takes its arguments one apiece. A reference naming more than
+  // one cell already answers #VALUE! in scalar context, which is exactly
+  // the right answer to ROUND(a whole column, 2).
+  function evalScalarCall(expr: Extract<Expr, { type: "call" }>): CellValue {
+    const args: number[] = []
+    for (const arg of expr.args) {
+      const v = toScalar(evalExpr(arg, "scalar"))
+      if (isError(v)) return v
+      args.push(v)
+    }
+    const [a, b] = args as [number, number?]
+    switch (expr.fn) {
+      case "ROUND":
+        return finite(roundTo(a, Math.trunc(b ?? 0)))
+      case "TRUNC": {
+        const factor = 10 ** Math.trunc(b ?? 0)
+        return finite(Math.trunc(a * factor) / factor)
+      }
+      case "ABS":
+        return finite(Math.abs(a))
+      case "SQRT":
+        // Negative roots are not real, and this language has no complex
+        // numbers to hand them to.
+        return a < 0 ? ERRORS.value : finite(Math.sqrt(a))
+      case "POWER":
+        return finite(a ** b!)
+      case "MOD":
+        // The result takes the divisor's sign — the spreadsheet
+        // convention, and the one that makes MOD(-1, 3) = 2 rather than
+        // JavaScript's -1.
+        return b === 0 ? ERRORS.div0 : finite(a - b! * Math.floor(a / b!))
+      default:
+        return ERRORS.name
+    }
+  }
+
+  function evalAggregateCall(expr: Extract<Expr, { type: "call" }>): CellValue {
     const collected: CellValue[] = []
     for (const arg of expr.args) {
       const values = rangeValues(arg)
@@ -158,18 +258,35 @@ export function evaluateTable(table: Node): Map<number, CellValue> {
     }
     for (const v of collected) if (isError(v)) return v
 
-    if (expr.fn === "COUNT") return collected.filter((v) => v != null).length
+    // The two counters are the pair every spreadsheet has, and naming both
+    // is what closes §9's open question about COUNT: COUNT is numeric,
+    // COUNTA is non-empty. Only these two tolerate text, because counting
+    // is the one aggregate for which text is data rather than a category
+    // error.
+    if (expr.fn === "COUNT") return collected.filter((v) => typeof v === "number").length
+    if (expr.fn === "COUNTA") return collected.filter((v) => v != null).length
 
-    // The remaining aggregates are numeric: text inside them is the trap
-    // we refuse — a type error, never a silent skip.
+    // Every other aggregate is numeric: text inside them is the trap we
+    // refuse — a type error, never a silent skip.
     if (collected.some((v) => typeof v === "string")) return ERRORS.value
     const numbers = collected.filter((v): v is number => typeof v === "number")
 
     switch (expr.fn) {
       case "SUM":
-        return numbers.reduce((a, b) => a + b, 0)
+        return finite(numbers.reduce((a, b) => a + b, 0))
+      case "PRODUCT":
+        // The empty product is 1, as the empty sum is 0 — each aggregate
+        // that has an identity returns it, and each that has none (AVG,
+        // MEDIAN) answers with an error instead of a fiction.
+        return finite(numbers.reduce((a, b) => a * b, 1))
       case "AVG":
-        return numbers.length === 0 ? ERRORS.div0 : numbers.reduce((a, b) => a + b, 0) / numbers.length
+        return numbers.length === 0 ? ERRORS.div0 : finite(numbers.reduce((a, b) => a + b, 0) / numbers.length)
+      case "MEDIAN": {
+        if (numbers.length === 0) return ERRORS.div0
+        const sorted = [...numbers].sort((x, y) => x - y)
+        const mid = sorted.length >> 1
+        return finite(sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2)
+      }
       case "MIN":
         return numbers.length === 0 ? 0 : Math.min(...numbers)
       case "MAX":

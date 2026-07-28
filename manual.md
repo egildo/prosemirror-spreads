@@ -55,7 +55,9 @@ References are names, never coordinates: a column (`Price`), a row (`Q1`), an in
 
 Editing a formula cell shows you the formula; the grid shows the value. Typing plain text over a formula cell replaces the formula — a cell is a standing value or a formula, never confusingly both. When a formula can't deliver — an unknown name, a deleted column, division by zero, a circular reference — the cell holds a frank error value (`#NAME?`, `#REF?`, `#DIV/0!`, `#CYCLE!`) that propagates to its dependents and serializes honestly: even your broken tables tell the truth.
 
-The function set is small and pure: `SUM`, `AVG`, `MIN`, `MAX`, `COUNT` to start. No `NOW()`, no `RAND()` — nothing whose value changes behind your document's back.
+The function set is small and pure. Over a range: `SUM`, `AVG`, `MIN`, `MAX`, `MEDIAN`, `PRODUCT`, and the counting pair — `COUNT` for numbers, `COUNTA` for anything non-empty. Over single values: `ROUND`, `TRUNC`, `ABS`, `SQRT`, `POWER`, `MOD`. They combine the way you'd expect — `=ROUND(AVG(Prezzo), 2)` — and the difference between the two groups shows itself honestly: hand a whole column to `ROUND` and you get `#VALUE!`, because rounding forty numbers at once isn't a thing.
+
+They also round the way you mean rather than the way a computer prefers: `ROUND(-2.5)` is `-3`, away from zero, and `MOD(-1, 3)` is `2`, taking the divisor's sign. Nothing whose value changes behind your document's back — no `NOW()`, no `RAND()` — and nothing infinite ever poses as a number: `SQRT` of a negative and `POWER(0, -1)` are errors that sit in the cell and say so.
 
 ## Values and formats
 
