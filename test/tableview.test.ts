@@ -4,7 +4,7 @@ import { Schema, DOMSerializer } from "prosemirror-model"
 import { EditorState, NodeSelection } from "prosemirror-state"
 import { EditorView } from "prosemirror-view"
 import { schema as base } from "prosemirror-schema-basic"
-import { spreads, spreadsNodes, spreadsNodeTypes, startEditing } from "prosemirror-spreads"
+import { spreads, spreadsNodes, spreadsNodeTypes, startEditing, stopEditing } from "prosemirror-spreads"
 
 // C17's headless dividend: with the box owning its DOM, the renderer's
 // keyed-by-node-identity diff is testable in jsdom — §6 is no longer
@@ -118,6 +118,96 @@ describe("the black box (C17)", () => {
     const editInput = view.dom.querySelector("[data-editing] input") as HTMLInputElement
     editInput.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }))
     expect(view.dom.querySelector("[data-editing] input")).toBe(editInput)
+    view.destroy()
+  })
+
+  it("while a buffer is open the box claims every key — stopEvent, not stopPropagation", () => {
+    // The regression that ate the second character of every typed value
+    // (Egildo's hands, 2026-07-29). The buffer stopped propagation of its
+    // keys, which stops DOM listeners — but ProseMirror decides whether an
+    // event inside a node view is its business by asking stopEvent, and that
+    // was still answering "keys are yours". The editor's own input machinery
+    // then replaced the node-selected cell with the keystroke: "12" landed as
+    // "2", the cell node deleted under the open buffer.
+    const view = makeView()
+    let tablePos = -1
+    let tableNode: ReturnType<typeof view.state.doc.nodeAt> = null
+    view.state.doc.descendants((node, pos) => {
+      if (node.type.name === "table") {
+        tablePos = pos
+        tableNode = node
+      }
+      return false
+    })
+    const nodeViews = view.someProp("nodeViews") as Record<string, any>
+    const box = nodeViews.table!(tableNode!, view, () => tablePos, [])
+    const key = new KeyboardEvent("keydown", { key: "2" })
+
+    // Non-key events are always the box's — unchanged.
+    expect(box.stopEvent(new Event("beforeinput"))).toBe(true)
+    // Idle, an unclaimed key belongs to the editor's courts — the reflection
+    // round's ruling, which this fix must not undo (undo inside the grid).
+    expect(box.stopEvent(key)).toBe(false)
+
+    let firstCell = -1
+    view.state.doc.descendants((n, p) => {
+      if (firstCell < 0 && n.type.name === "table_cell") firstCell = p
+      return true
+    })
+    startEditing(firstCell, "1")(view.state, view.dispatch)
+    // Editing: every key is the buffer's, and this is the only place the
+    // editor asks.
+    expect(box.stopEvent(key)).toBe(true)
+
+    stopEditing(view.state, view.dispatch)
+    expect(box.stopEvent(key)).toBe(false) // and the courts get them back
+    box.destroy()
+    view.destroy()
+  })
+
+  it("a blur that hands focus to someone still settles — §5's law, untouched", () => {
+    const view = makeView()
+    document.body.appendChild(view.dom.parentElement ?? view.dom)
+    let firstCell = -1
+    view.state.doc.descendants((n, p) => {
+      if (firstCell < 0 && n.type.name === "table_cell") firstCell = p
+      return true
+    })
+    startEditing(firstCell, "42")(view.state, view.dispatch)
+    const input = view.dom.querySelector("[data-editing] input") as HTMLInputElement
+    input.value = "42"
+    // Someone on the other side: a real departure, and it commits as it always has.
+    const elsewhere = document.createElement("button")
+    document.body.appendChild(elsewhere)
+    input.dispatchEvent(new FocusEvent("blur", { relatedTarget: elsewhere }))
+    expect(view.dom.querySelector("[data-editing]")).toBeNull()
+    expect(view.state.doc.nodeAt(firstCell)!.textContent).toBe("42")
+    elsewhere.remove()
+    view.destroy()
+  })
+
+  it("a blur nobody took does not commit — the DOM moved, not the user", () => {
+    // Chrome that resizes or hides while you type blurs the buffer with no one
+    // on the other side. Committing there ate the first character: typing "12"
+    // settled "1" and re-seeded with "2" (Egildo's hands, 2026-07-28). No
+    // browser tool reaches this path — CDP typing fires no keydown — so the
+    // regression is pinned here or nowhere.
+    const view = makeView()
+    document.body.appendChild(view.dom.parentElement ?? view.dom)
+    let firstCell = -1
+    view.state.doc.descendants((n, p) => {
+      if (firstCell < 0 && n.type.name === "table_cell") firstCell = p
+      return true
+    })
+    startEditing(firstCell, "1")(view.state, view.dispatch)
+    const input = view.dom.querySelector("[data-editing] input") as HTMLInputElement
+    input.value = "1"
+    input.dispatchEvent(new FocusEvent("blur", { relatedTarget: null }))
+    // The edit is still open, its text intact, and nothing reached the document.
+    expect(view.dom.querySelector("[data-editing]")).not.toBeNull()
+    expect((view.dom.querySelector("[data-editing] input") as HTMLInputElement).value).toBe("1")
+    expect(view.state.doc.nodeAt(firstCell)!.textContent).toBe("a") // the standing value, uncommitted
+    expect(document.activeElement).toBe(input) // the buffer took its focus back
     view.destroy()
   })
 

@@ -227,8 +227,27 @@ class CellComp {
     }
   }
 
-  private onBlur = () => {
-    if (!this.settling) this.settle(null)
+  /// Blur settles — §5's law, and right about the user: a click elsewhere
+  /// commits, like every spreadsheet. It was silent about the *DOM*, though,
+  /// and that silence ate a keystroke: any chrome that resizes or hides while
+  /// you type blurs the buffer, and the settle committed a half-typed value,
+  /// so typing "12" left the cell holding "2" (Egildo's hands, 2026-07-28).
+  ///
+  /// The signal that separates the two is who took the focus. A departure
+  /// hands it to someone — prose, another cell, a button, the next tab stop —
+  /// and `relatedTarget` names them. A blur with *nobody* on the other side is
+  /// what an element hiding, a re-render or a layout shift looks like; there
+  /// is no user in it, so there is nothing to commit. The buffer takes its
+  /// focus back and the edit carries on.
+  ///
+  /// Carried cost, stated rather than discovered: clicking dead page space —
+  /// a non-focusable area outside the editor — no longer commits on the spot,
+  /// because that blur is genuinely indistinguishable from the spurious kind.
+  /// The edit stays open until the next focusable click, Enter, Tab or Escape.
+  private onBlur = (event: FocusEvent) => {
+    if (this.settling || !this.input) return
+    if (event.relatedTarget) return this.settle(null)
+    this.input.focus()
   }
 
   private settle(advance: SettleAdvance) {
@@ -701,11 +720,24 @@ export class TableView implements NodeView {
   }
 
   // Everything inside the box is the box's business — except the keys it
-  // does not claim: those pass through to the editor's courts (the box
-  // consumed its own with stopPropagation before ProseMirror ever sees
-  // them, and the buffer stops all of its).
+  // does not claim: those pass through to the editor's courts, which is the
+  // reflection round's ruling and stands.
+  //
+  // With one correction, paid for by Egildo's hands (2026-07-29). While a
+  // buffer is open every key is the buffer's — that was settled then too
+  // ("the buffer is stricter, not looser: a native input owns every
+  // keystroke") — but the mechanism chosen for it was `stopPropagation`, and
+  // **stopPropagation does not stop ProseMirror**. It stops DOM listeners;
+  // the editor decides whether an event inside a node view is its business by
+  // asking *here*, and here we were still answering "keys are yours". So the
+  // second character of every typed value went to the editor's own input
+  // machinery, which replaced the node-selected cell with that character:
+  // typing "12" left the cell holding "2", the cell node deleted out from
+  // under the open buffer, and the edit state cleared by `mapped.deleted`.
+  // One keystroke worked because the first one is ours by another road.
   stopEvent(event: Event): boolean {
-    return !event.type.startsWith("key")
+    if (!event.type.startsWith("key")) return true
+    return !!spreadsKey.getState(this.view.state)?.editing
   }
 
   ignoreMutation(): boolean {
