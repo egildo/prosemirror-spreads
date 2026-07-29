@@ -55,6 +55,19 @@ export function spreadsNodes(_options: SpreadsNodesOptions = {}): Record<string,
       content: "table_caption? table_colgroup* table_head? table_body+ table_foot?",
       group: "block",
       isolating: true,
+      // The black box (C17), said to the schema. A generic host derives verbs
+      // from nouns, and the grammar happily says a `td` may go in a `tr` — so
+      // an insert-cell verb really did put a third cell into a two-column row,
+      // past every structural command in this package (found in the venue,
+      // 2026-07-29). `sealed` states the cause once: everything reachable only
+      // through this table is ours to create, and our own commands are how.
+      // `insert` stands beside it because the table itself is reachable from
+      // the doc and so is not interior to itself — we declare that one.
+      //
+      // Not to be read as a cousin of `isolating` two lines up: that governs
+      // whether selection and deletion cross a boundary, and says nothing
+      // about who may create what.
+      authoring: { sealed: true, insert: false },
       spreadsRole: "table",
       parseDOM: [{ tag: "table" }],
       toDOM: () => ["table", 0],

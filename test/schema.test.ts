@@ -72,4 +72,17 @@ describe("spreadsNodes", () => {
     const doc = parseHTML('<table><colgroup><col style="width:50%"></colgroup><tbody><tr><td>a</td></tr></tbody></table>')
     expect(serialize(doc)).toContain("<col></colgroup>")
   })
+
+  it("the table declares its authoring: the interior is ours to create", () => {
+    // The black box (C17), said to the schema. A generic host derives verbs
+    // from nouns, and the grammar cheerfully says a td may go in a tr — which
+    // is how a derived insert-cell verb put a third cell into a two-column row
+    // (found in the venue, 2026-07-29). We can only pin the *declaration* from
+    // here: this package owes prosemirror-verbs no dependency, so the closure
+    // that `sealed` computes is asserted on that side.
+    const nodes = spreadsNodes()
+    expect(nodes.table!.authoring).toEqual({ sealed: true, insert: false })
+    // One cause, declared once — not nine consequences on nine specs.
+    expect(Object.entries(nodes).filter(([, spec]) => spec.authoring).map(([name]) => name)).toEqual(["table"])
+  })
 })

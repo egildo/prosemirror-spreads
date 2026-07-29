@@ -2,6 +2,20 @@
 
 The venue's memory between sessions: what changed, because of what, instead of which rejected road. The working documents hold the present; this file holds the past. One entry per session, written at close, religiously.
 
+## 2026-07-29 (third session) — The black box, said to the schema
+
+**A free-discussion round about prosemirror-verbs' foundations turned up a live defect in this package's neighbourhood**, and it was found by looking rather than by reasoning. Egildo ruled the direction — *downward*, make the verb-Schema actually read the noun-Schema, over *outward* (a palette, an invoke-by-id handle) — and the first thing derivation's audit turned over was ours.
+
+**The defect.** prosemirror-verbs' `insertVerbs` derives one insert verb per node type in the schema. With our nouns installed that produced ten: `insert:table_cell`, `insert:table_row`, `insert:table_col`, `insert:table_head/body/foot`, `insert:table_header`, `insert:table_colgroup`, `insert:table_caption`, and `insert:table` — the last a degenerate `createAndFill` twin of our own `table:insert`. They carried no glyph, so nobody saw a button, and the whole set read as noise. It wasn't. **`insert:table_cell` fired**: one call in the venue left the two-column listino with a three-cell footer row, past `structure.ts` entirely and past enforcement. Verified live before touching anything, then undone — the evidence is on the record because a fix makes it unreproducible.
+
+**The cause, stated generally because it will recur.** The schema declares what is **grammatically legal** and never what is **legitimately user-creatable**. A `td` in a `tr` is legal; `insertPoint` obligingly finds the spot. Nothing in a content expression says *these nouns are the table's to make.*
+
+**The fix — two words in one spec.** `authoring: { sealed: true, insert: false }` on the `table` node. `sealed` states the cause once: everything reachable from the doc only through this table is ours, and the host's derivation computes the nine interior types from it. `insert` stands beside it because the table is reachable from the doc and so is not interior to itself. *Instead of* `insert: false` written out on nine specs — Egildo's ruling: that declares the consequence nine times where the cause is already carved once, as C17's black box. The cost of his choice, named rather than discovered: the rule is now a whole-schema property, so `interiorTypes(schema)` is exported on the verbs side to keep it inspectable rather than magic.
+
+**Why this belongs to us and not to the host**, which is the mirror of yesterday's ruling: taste moved *to* the host because a host can reasonably disagree about a name. This stays *with* the plugin because no host can reasonably disagree that a table cell is not a top-level insert — and a host that had to know it would be re-deriving knowledge it doesn't have, for plugins it didn't write. Same test, opposite answer. It rides on the NodeSpec under the allowance `spreadsRole` already uses, whose own comment calls it a hook for third-party tooling.
+
+**What this package can pin, honestly:** only the declaration (`test/schema.test.ts`, 156 tests). We owe prosemirror-verbs no dependency, so the closure it computes lives in its `test/derive.test.ts`. Field: the venue's register drops from 61 verbs to 51, the anchored strip is pixel-identical, `=SUM(Prezzo)` still 59.
+
 ## 2026-07-29 (second session) — Phase C: the set sheds its taste
 
 **Egildo: "let's do phase C, we have to reorganize this in the most clean fashion, carve and we'll start working on the spreadsheet again."** The last open task from the surface round, and the one that makes the doctrine true in the code rather than only in the commit messages.
