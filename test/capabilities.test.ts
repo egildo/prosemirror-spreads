@@ -3,13 +3,14 @@ import { Schema } from "prosemirror-model"
 import { EditorState, NodeSelection } from "prosemirror-state"
 import type { Command } from "prosemirror-state"
 import { schema as base } from "prosemirror-schema-basic"
-import { spreads, spreadsNodes, spreadsVerbs, isCellType } from "prosemirror-spreads"
-import type { SpreadsVerb } from "prosemirror-spreads"
+import { spreads, spreadsNodes, spreadsCapabilities, spreadsTaste, isCellType } from "prosemirror-spreads"
+import type { SpreadsCapability } from "prosemirror-spreads"
 
-// The verb set is plain data in prosemirror-verbs' structural contract —
-// declared without depending on the registry. Pins: the set guards its
-// nouns, entries carry the required trio, and the commands dry-run the way
-// a composing host expects.
+// The capability set is plain data in prosemirror-verbs' structural contract —
+// declared without depending on the registry. Pins: the set guards its nouns,
+// every entry is a *bare* capability (no name, no glyph, no category — the
+// doctrine's line, mechanically enforced), the suggested taste covers it from
+// outside, and the commands dry-run the way a composing host expects.
 
 const schema = new Schema({
   nodes: base.spec.nodes.append(spreadsNodes()),
@@ -22,25 +23,63 @@ function apply(state: EditorState, command: Command): EditorState {
   return next
 }
 
-describe("spreadsVerbs", () => {
+describe("spreadsCapabilities", () => {
   it("guards its nouns: a schema without our types yields nothing", () => {
-    expect(spreadsVerbs(base)).toEqual([])
+    expect(spreadsCapabilities(base)).toEqual([])
   })
 
-  it("declares the required trio with unique ids", () => {
-    const verbs = spreadsVerbs(schema)
+  it("declares an id and a command, with unique ids", () => {
+    const verbs = spreadsCapabilities(schema)
     expect(verbs.length).toBeGreaterThan(0)
     const ids = verbs.map((verb) => verb.id)
     expect(new Set(ids).size).toBe(ids.length)
     for (const verb of verbs) {
       expect(verb.id).toBeTruthy()
-      expect(verb.label).toBeTruthy()
       expect(typeof verb.command).toBe("function")
     }
   })
 
+  it("ships capabilities and nothing else — the doctrine, mechanically", () => {
+    // A capability is what we can do and what we can tell you: id, command,
+    // read, enabled, args. A name, a glyph, a chord, a category are the host's,
+    // and this pin is what would catch one drifting back in. Its argument
+    // declarations carry no labels either: what to call a box is the asker's.
+    const allowed = new Set(["id", "command", "read", "enabled", "args"])
+    for (const verb of spreadsCapabilities(schema)) {
+      for (const key of Object.keys(verb)) expect(allowed).toContain(key)
+      for (const arg of verb.args ?? []) {
+        for (const key of Object.keys(arg)) expect(["name", "type", "domain"]).toContain(key)
+        for (const member of arg.domain ?? []) expect(Object.keys(member)).toEqual(["value"])
+      }
+    }
+  })
+
+  it("the suggested taste covers every capability, and its conjugated forms", () => {
+    // Shipping the taste separately only pays if it is complete: a host that
+    // seats it gets a dressed strip, and a capability added without a name
+    // here would come up spelled by the id-humanizer. The three region forms
+    // are ids a host's `expand` produces, dressed here like anything else.
+    for (const verb of spreadsCapabilities(schema)) {
+      expect(spreadsTaste[verb.id]?.label, verb.id).toBeTruthy()
+    }
+    for (const member of ["head", "body", "foot"]) {
+      expect(spreadsTaste[`table:row-region:${member}`]?.short).toBeTruthy()
+    }
+    // Faces are curation: a glyph means a button, its absence means none. The
+    // fields wear words, and the three keyboard rungs wear nothing at all.
+    for (const id of ["table:formula", "table:abbr", "table:caption", "table:column-width"]) {
+      expect(spreadsTaste[id]!.short, id).toBeUndefined()
+    }
+    for (const id of ["table:edit", "table:clear", "table:select"]) {
+      expect(spreadsTaste[id]!.short, id).toBeUndefined()
+    }
+    for (const id of ["table:split-body", "table:join-bodies"]) {
+      expect(spreadsTaste[id]!.short, id).toBeTruthy()
+    }
+  })
+
   it("table:insert is an arg-verb: enabled gates it, the factory coerces its dimensions", () => {
-    const insert = spreadsVerbs(schema).find((verb) => verb.id === "table:insert")!
+    const insert = spreadsCapabilities(schema).find((verb) => verb.id === "table:insert")!
     const state = EditorState.create({ schema, plugins: [...spreads()] })
     expect(insert.args!.map((arg) => arg.name)).toEqual(["rows", "cols"])
     expect(insert.enabled!(state)).toBe(true)
@@ -60,7 +99,7 @@ describe("spreadsVerbs", () => {
   })
 
   it("table:edit dry-runs false without a cell selection, true with one — and its readback follows the seam", () => {
-    const verbs = spreadsVerbs(schema)
+    const verbs = spreadsCapabilities(schema)
     const edit = verbs.find((verb) => verb.id === "table:edit")!
     let state = withInserted()
     const command = edit.command as Command
@@ -73,7 +112,7 @@ describe("spreadsVerbs", () => {
   })
 
   it("the structure family dry-runs false without a cell selection, true with one", () => {
-    const verbs = spreadsVerbs(schema)
+    const verbs = spreadsCapabilities(schema)
     const ids = [
       "table:add-row-before",
       "table:add-row-after",
@@ -92,7 +131,7 @@ describe("spreadsVerbs", () => {
   })
 
   it("table:formula reads the formula you stand on and writes through the seam", () => {
-    const formula = spreadsVerbs(schema).find((verb) => verb.id === "table:formula")!
+    const formula = spreadsCapabilities(schema).find((verb) => verb.id === "table:formula")!
     const blank = EditorState.create({ schema, plugins: [...spreads()] })
     expect(formula.read!(blank)).toBeNull()
     expect(formula.enabled!(blank)).toBe(false)
@@ -112,7 +151,7 @@ describe("spreadsVerbs", () => {
   })
 
   it("table:row-region declares the {head, body, foot} domain and reads the member you stand on", () => {
-    const region = spreadsVerbs(schema).find((verb) => verb.id === "table:row-region")!
+    const region = spreadsCapabilities(schema).find((verb) => verb.id === "table:row-region")!
     expect(region.args![0]!.domain!.map((member) => member.value)).toEqual(["head", "body", "foot"])
     const blank = EditorState.create({ schema, plugins: [...spreads()] })
     expect(region.read!(blank)).toBeNull()
@@ -127,7 +166,7 @@ describe("spreadsVerbs", () => {
   })
 
   it("the new entries dry-run honestly without a cell selection", () => {
-    const verbs = spreadsVerbs(schema)
+    const verbs = spreadsCapabilities(schema)
     const blank = EditorState.create({ schema, plugins: [...spreads()] })
     for (const id of ["table:row-header-column", "table:split-body", "table:join-bodies"]) {
       expect((verbs.find((verb) => verb.id === id)!.command as Command)(blank, undefined)).toBe(false)
@@ -142,7 +181,7 @@ describe("spreadsVerbs", () => {
   it("the three value-verbs declare a control's whole specification", () => {
     // One argument, no domain, a typed name and a readback that answers a
     // value: that is a field, and a host reads it off the declaration alone.
-    const verbs = spreadsVerbs(schema)
+    const verbs = spreadsCapabilities(schema)
     for (const [id, type] of [
       ["table:formula", "text"],
       ["table:abbr", "text"],
@@ -159,7 +198,7 @@ describe("spreadsVerbs", () => {
   })
 
   it("table:caption reads the table's name from any cell, and blank removes it", () => {
-    const caption = spreadsVerbs(schema).find((verb) => verb.id === "table:caption")!
+    const caption = spreadsCapabilities(schema).find((verb) => verb.id === "table:caption")!
     const onCell = withInserted()
     expect(caption.enabled!(onCell)).toBe(true)
     expect(caption.read!(onCell)).toBeNull()
@@ -175,7 +214,7 @@ describe("spreadsVerbs", () => {
     // A header has no formula attribute: a formula settled there would
     // degrade to its own text, silently renaming the column. The gate
     // matches the readback — data cells, nothing else.
-    const formula = spreadsVerbs(schema).find((verb) => verb.id === "table:formula")!
+    const formula = spreadsCapabilities(schema).find((verb) => verb.id === "table:formula")!
     const onCell = withInserted()
     expect(formula.enabled!(onCell)).toBe(true)
     let headerPos = -1
@@ -194,23 +233,13 @@ describe("spreadsVerbs", () => {
       onCell.doc.nodeAt(headerPos)!.textContent,
     )
     // The abbr verb is the header's twin, and mirrors the gate.
-    const abbr = spreadsVerbs(schema).find((verb) => verb.id === "table:abbr")!
+    const abbr = spreadsCapabilities(schema).find((verb) => verb.id === "table:abbr")!
     expect(abbr.enabled!(onHeader)).toBe(true)
     expect(abbr.enabled!(onCell)).toBe(false)
   })
 
-  it("the partition pair wears faces now — a verb with no glyph reaches no strip", () => {
-    const verbs = spreadsVerbs(schema)
-    expect(verbs.find((verb) => verb.id === "table:split-body")!.short).toBeTruthy()
-    expect(verbs.find((verb) => verb.id === "table:join-bodies")!.short).toBeTruthy()
-    // These three stay deliberately faceless: they are keyboard rungs.
-    for (const id of ["table:edit", "table:clear", "table:select"]) {
-      expect(verbs.find((verb) => verb.id === id)!.short).toBeUndefined()
-    }
-  })
-
   it("table:demote-formula freezes the computed value and drops the automation", () => {
-    const verbs = spreadsVerbs(schema)
+    const verbs = spreadsCapabilities(schema)
     const formula = verbs.find((verb) => verb.id === "table:formula")!
     const demote = verbs.find((verb) => verb.id === "table:demote-formula")!
     const command = demote.command as Command
@@ -226,7 +255,7 @@ describe("spreadsVerbs", () => {
   })
 
   it("table:select climbs the Escape rung, and its readback names the state", () => {
-    const selectVerb = spreadsVerbs(schema).find((verb) => verb.id === "table:select")!
+    const selectVerb = spreadsCapabilities(schema).find((verb) => verb.id === "table:select")!
     const onCell = withInserted()
     const command = selectVerb.command as Command
     expect(selectVerb.read!(onCell)).toBe(false)
@@ -238,7 +267,7 @@ describe("spreadsVerbs", () => {
 
 // A state holding a fresh default table with its first data cell selected.
 function withInserted(): EditorState {
-  const insert = spreadsVerbs(schema).find((verb) => verb.id === "table:insert")! as SpreadsVerb
+  const insert = spreadsCapabilities(schema).find((verb) => verb.id === "table:insert")! as SpreadsCapability
   const factory = insert.command as (args: Record<string, unknown>) => Command
   let state = EditorState.create({ schema, plugins: [...spreads()] })
   state = apply(state, factory({}))

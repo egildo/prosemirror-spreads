@@ -26,8 +26,12 @@ export { addRowBefore, addRowAfter, addColumnBefore, addColumnAfter, deleteRow, 
 export { setRowRegion, toggleRowHeaderColumn, splitBody, joinBodies } from "./regions"
 export { writeSelectedCaption, selectedCaption, selectedTable, canWriteCaption } from "./caption"
 export { gridKeys, keyNameOf } from "./keys"
-export { spreadsVerbs } from "./verbs"
-export type { SpreadsVerb, SpreadsVerbArg, SpreadsDomainMember } from "./verbs"
+// What we can do, and — separately, seated by the host or not at all — what we
+// would call it. The two exports are the doctrine's two halves; see taste.ts.
+export { spreadsCapabilities } from "./capabilities"
+export type { SpreadsCapability, SpreadsArg, SpreadsDomainMember } from "./capabilities"
+export { spreadsTaste } from "./taste"
+export type { SpreadsTasteEntry } from "./taste"
 export { gridMap, GridMap } from "./gridmap"
 export type { Region, RowMeta, GridProblem } from "./gridmap"
 export { nameTable, nameCells, intersectionCell } from "./names"

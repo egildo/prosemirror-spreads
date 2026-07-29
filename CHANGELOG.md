@@ -2,6 +2,20 @@
 
 The venue's memory between sessions: what changed, because of what, instead of which rejected road. The working documents hold the present; this file holds the past. One entry per session, written at close, religiously.
 
+## 2026-07-29 (second session) — Phase C: the set sheds its taste
+
+**Egildo: "let's do phase C, we have to reorganize this in the most clean fashion, carve and we'll start working on the spreadsheet again."** The last open task from the surface round, and the one that makes the doctrine true in the code rather than only in the commit messages.
+
+**What changed.** `spreadsVerbs` is now **`spreadsCapabilities`**, `src/verbs.ts` is now `src/capabilities.ts`, and every entry in it carries `id`, `command`, `read`, `enabled`, `args` — and nothing else. No labels, no glyphs, no keywords, no groups; no labels on the arguments; no labels on the domain members. *Because* only this package can know that a formula lives on a `td` and not a `th`, and only a host can know what to call it, which glyph it wears, or which section it sits in — Egildo's ruling of 2026-07-28 ("split the entry: capability stays, taste moves"), now prosemirror-verbs' V12 as amended. The old wording drew the line at chrome and stopped one layer short: a name is not chrome, but it is not ours either.
+
+**What did not get thrown away.** A bare capability set hands every host a bill for eighteen names and a designed glyph vocabulary, so the taste ships too — separately, as **`spreadsTaste`** (`src/taste.ts`): inert data keyed by id, including the three `table:row-region:*` forms a host's `expand` produces. The host seats it as one cascade layer in one line, or doesn't. That is an offer rather than cargo, and the difference is the whole point: it must be seated to have any effect, it loses to every host layer above it, and `describe(id)` names it as the claimant. Two things stayed out of it deliberately — **`group`**, because a category name means nothing except against the host's own list of sections, and **chords**, because the keyboard is the host's court and our keys already travel as the `gridKeys` policy.
+
+**What it cost prosemirror-verbs**, since the shed was only possible if the contract allowed it: `VerbArg.label` and `DomainMember.label` became optional; `expand` now emits bare capabilities for bare members; a field's face falls back from the argument's label to the *verb's* label — which matters, because `args` is a capability key closed to layers, so a label buried in it would have been the one piece of taste no attribute could reach. New stone **V13 — taste is a cascade of layers** (pinned), and V12 amended with the rule that tells the halves apart: *could a second editor reasonably disagree?*
+
+**Verified in the field, not asserted.** The venue's strip came up identical — same glyphs, same order, same eleven controls — with `table:abbr`'s label four claimants deep (`naming` → `spreads (suggested)` → `venue naming`), the venue's own word winning exactly where a host should win. One visible change, named rather than found later: the column-width field's placeholder was the argument's `px` and is now the verb's "Column width", which a 5ch number box truncates; the tooltip and accessible name are right, and the host can rename it in a line. Suites: spreads 155, verbs 41, surface 20.
+
+**Instead of** two roads not taken: leaving the taste on the entries and calling the doctrine satisfied by intent (it would have stayed a comment, and the next plugin would have copied the old shape), and shedding it with no replacement export (pure, and it would have made every install come up spelled by an id-humanizer — purity paid for by every consumer).
+
 ## 2026-07-29 — The second keystroke: an intention enforced through the wrong seam
 
 **Egildo, typing: "If I type '12' on a cell it puts first '1' and then '2'. Absolutely ghastly."** The cell kept only the second character. It took three dead theories and an instrument to name, and the coach's first two confident diagnoses were both wrong — worth recording, because the pattern is the finding.
