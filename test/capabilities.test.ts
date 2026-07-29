@@ -62,19 +62,26 @@ describe("spreadsCapabilities", () => {
     for (const verb of spreadsCapabilities(schema)) {
       expect(spreadsTaste[verb.id]?.label, verb.id).toBeTruthy()
     }
-    for (const member of ["head", "body", "foot"]) {
-      expect(spreadsTaste[`table:row-region:${member}`]?.short).toBeTruthy()
+    // Names, never glyphs. A character standing in for a picture is the thing
+    // this file stopped doing (Egildo's ruling, 2026-07-29): it renders as
+    // mojibake wherever the font disagrees, and leaves an icon-only control
+    // with nothing for a screen reader to say.
+    for (const [id, entry] of Object.entries(spreadsTaste)) {
+      if (entry.icon) expect(entry.icon, id).toMatch(/^[a-z][a-z0-9-]*$/)
     }
-    // Faces are curation: a glyph means a button, its absence means none. The
+    for (const member of ["head", "body", "foot"]) {
+      expect(spreadsTaste[`table:row-region:${member}`]?.icon).toBeTruthy()
+    }
+    // Faces are curation: a picture means a button, its absence means none. The
     // fields wear words, and the three keyboard rungs wear nothing at all.
     for (const id of ["table:formula", "table:abbr", "table:caption", "table:column-width"]) {
-      expect(spreadsTaste[id]!.short, id).toBeUndefined()
+      expect(spreadsTaste[id]!.icon, id).toBeUndefined()
     }
     for (const id of ["table:edit", "table:clear", "table:select"]) {
-      expect(spreadsTaste[id]!.short, id).toBeUndefined()
+      expect(spreadsTaste[id]!.icon, id).toBeUndefined()
     }
     for (const id of ["table:split-body", "table:join-bodies"]) {
-      expect(spreadsTaste[id]!.short, id).toBeTruthy()
+      expect(spreadsTaste[id]!.icon, id).toBeTruthy()
     }
   })
 

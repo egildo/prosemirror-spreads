@@ -2,6 +2,18 @@
 
 The venue's memory between sessions: what changed, because of what, instead of which rejected road. The working documents hold the present; this file holds the past. One entry per session, written at close, religiously.
 
+## 2026-07-29 (fourth session) — The glyphs go; names travel instead
+
+**Egildo, on the strip: "let's get rid of icons in the verbs, it is very ugly. We gotta set icons in those templates in a civilized way, passing names."**
+
+**What changed here.** `spreadsTaste` sheds every glyph. `⊕↓`, `⊖│`, `ƒ−`, `◧`, `⊕═` become `row-add-after`, `column-delete`, `formula-demote`, `row-headers`, `body-split` — **names**, which this package does not resolve and could not. *Because* a character pressed into service as a picture is text pretending to be an icon: it renders as mojibake wherever the font disagrees, it cannot be restyled, and it leaves an icon-only control with nothing for a screen reader to say. A name costs nothing to ignore and a host resolves it in one stylesheet line — an SVG mask, an icon font, a letter.
+
+**The tension named, since it nearly went the other way.** An icon name means nothing except against the host's own icon set, which is the exact argument that kept `group` out of this file. By that rule we should suggest none. The answer that made shedding safe is on the surface's side rather than ours: a **default rendering ignores names and draws the words**, so a stranger who installs this and writes nothing gets a wordy but complete and readable toolbar rather than a row of blank boxes. Names are what you get when you supply templates, which is where the resolution lives. *Instead of* keeping the glyphs as a fallback — which I argued for and Egildo overruled, correctly: two vocabularies for one compact face is one too many, and the venue's own stylesheet is where lettering belongs.
+
+**Curation is unchanged**, which is why this was smaller than it looked: the absence of an icon still means no control, exactly where the absence of a compact face used to. The keyboard rungs and the four value fields stay pictureless and unaffected.
+
+**What the field shows.** The spreadsheet strip on a selected cell went from thirteen controls to **two** — `⌖` and one `⊞` holding nine — with no verb removed and nothing declared but `as: 'menu'` on one section in the venue's own file. 156 tests; the taste pins now assert names and refuse anything that is not one.
+
 ## 2026-07-29 (third session) — The black box, said to the schema
 
 **A free-discussion round about prosemirror-verbs' foundations turned up a live defect in this package's neighbourhood**, and it was found by looking rather than by reasoning. Egildo ruled the direction — *downward*, make the verb-Schema actually read the noun-Schema, over *outward* (a palette, an invoke-by-id handle) — and the first thing derivation's audit turned over was ours.
