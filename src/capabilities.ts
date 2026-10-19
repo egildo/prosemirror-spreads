@@ -85,7 +85,7 @@ const dimension = (value: unknown, fallback: number): number => {
 
 /// The spreads capability set — the selection-driven public doings, as
 /// declarations a verbs host composes
-/// (`composeVerbs(basicVerbs(schema), spreadsCapabilities(schema), …)`).
+/// (`compose([basicVerbs(schema), fromCommands(spreadsCapabilities(schema)), …])`).
 /// A set guards its nouns: without our node types in the schema it yields
 /// nothing. Every id here is provisional — christening cargo. No chords are
 /// declared: the grid's keys are a *policy*, not chords — seat

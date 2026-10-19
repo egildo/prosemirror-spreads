@@ -44,7 +44,7 @@ The ritual, both halves religious:
 
 - pnpm; `pnpm dev` (playground), `pnpm test`, `pnpm typecheck`, `pnpm build`.
 - The field lives at `../pm-testing-venue` (github:egildo/pm-testing-venue): the standing consumer, holding this plugin plus prosemirror-verbs and prosemirror-surface as `file:` dependencies. Rebuild this package (`dist/`) before pressing a change there, and stop its dev server before clearing `node_modules/.vite` — a symlinked dep behind a warm optimizeDeps cache serves stale code and costs an hour of chasing ghosts.
-- The arena (`../spreads-arena`, github:egildo/spreads-arena, private) is retired as the field, not deleted: it is the only place a git-ref install has ever been exercised, so it stays on the shelf against the day publication is decided. `prepare` in this repo's package.json still makes git-branch installs build on install.
+- The arena (`spreads-arena`) was removed on 2026-10-19, by Egildo's ruling. It was the only place a git-ref install was ever exercised, so that gap is now open until publication is decided. `prepare` in this repo's package.json still makes git-branch installs build on install.
 - The package name `prosemirror-spreads` aliases to `src/index.ts` in the playground and tests: consumer-shaped imports, live source underneath.
 - ProseMirror core packages are peer dependencies; the consumer's editor owns them.
 - Prose documents: one logical line per paragraph, never hard-wrapped.
